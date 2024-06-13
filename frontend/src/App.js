@@ -1,25 +1,26 @@
-import logo from './logo.svg';
-import './App.css';
+import React from "react";
+import SearchBar from "./components/SearchBar";
 
-function App() {
+const App = () => {
+  const handleSearch = (query) => {
+    // TODO: implement search logic
+    console.log("Suche nach:", query);
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <div>
+        <h1>Search Engine</h1>
+        <SearchBar onSearch={handleSearch} />
+      </div>
     </div>
   );
-}
+};
 
 export default App;
