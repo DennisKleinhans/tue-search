@@ -3,10 +3,12 @@ import SearchBar from "./components/SearchBar";
 import SearchResults from "./components/SearchResults";
 import { getExampleResults } from "./utils";
 import Title from "./components/Title";
+import SearchContainer from "./components/SearchContainer";
 
 const App = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [mode, setMode] = useState("single");
 
   const handleSearch = async (searchQuery) => {
     setQuery(searchQuery);
@@ -33,10 +35,10 @@ const App = () => {
       <Title
         titlePrefix={"TÜ"}
         titleSuffix={"Search"}
-        subtitle={"Die Suchmaschine für Tübingen"}
+        subtitle={"Search engine for Tübingen"}
       />
       <div style={{ width: "60%" }}>
-        <SearchBar onSearch={handleSearch} />
+        <SearchContainer onSearch={handleSearch} />
       </div>
       <div style={{ width: "50%", marginTop: "20px" }}>
         <SearchResults results={results} />
