@@ -27,7 +27,7 @@ const SearchBar = ({ onSearch }) => {
   };
 
   return (
-    <Box display="flex" alignItems="center">
+    <Box display="flex">
       <TextField
         variant="outlined"
         value={query}
@@ -58,8 +58,16 @@ const SearchBar = ({ onSearch }) => {
               </IconButton>
             </InputAdornment>
           ),
+          style: {
+            borderRadius: 20,
+          },
         }}
-        style={{ width: "60%" }}
+        sx={{
+          width: "60%",
+          "& .MuiOutlinedInput-root": {
+            borderRadius: "40px",
+          },
+        }}
       />
     </Box>
   );
