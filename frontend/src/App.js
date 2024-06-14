@@ -32,7 +32,7 @@ const App = () => {
         display: "flex",
         flexDirection: "column",
         alignItems: "right",
-        height: "100vh",
+        height: "100%",
         marginLeft: "10vw",
       }}
     >
