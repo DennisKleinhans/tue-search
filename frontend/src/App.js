@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import SearchBar from "./components/SearchBar";
 import SearchResults from "./components/SearchResults";
 import { getExampleResults } from "./utils";
 import Title from "./components/Title";
 import SearchContainer from "./components/SearchContainer";
+import "./App.css";
 
 const App = () => {
   const [query, setQuery] = useState("");
@@ -27,6 +27,7 @@ const App = () => {
 
   return (
     <div
+      className="App"
       style={{
         display: "flex",
         flexDirection: "column",
