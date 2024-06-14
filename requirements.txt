@@ -1,0 +1,7 @@
+pytest-playwright
+playwright
+beautifulsoup4
+oauthlib
+requests_oauthlib
+langdetect
+pandas
