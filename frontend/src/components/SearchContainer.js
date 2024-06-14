@@ -5,16 +5,17 @@ import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Box from "@mui/material/Box";
 
-const SearchContainer = ({ onSearch }) => {
+const SearchContainer = ({ onSearch, onClear }) => {
   const [batchMode, setBatchMode] = useState(false);
 
   const handleToggle = () => {
     setBatchMode(!batchMode);
+    onClear();
   };
 
   return (
     <Box>
-      <Box mb={2}>
+      <Box>
         <FormControlLabel
           control={<Switch checked={batchMode} onChange={handleToggle} />}
           label={batchMode ? "Batch Search" : "Single Search"}

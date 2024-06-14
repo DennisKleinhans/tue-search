@@ -6,7 +6,6 @@ const Title = ({ titlePrefix, titleSuffix, subtitle }) => {
   return (
     <Box textAlign="left" mb={4} mt={6}>
       <div style={{ display: "flex", alignItems: "center" }}>
-        {/* Tübingen Wappen */}
         <img
           src={process.env.PUBLIC_URL + "/img/wappen.png"}
           alt="Tübingen Wappen"

@@ -8,7 +8,6 @@ import SearchContainer from "./components/SearchContainer";
 const App = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
-  const [mode, setMode] = useState("single");
 
   const handleSearch = async (searchQuery) => {
     setQuery(searchQuery);
@@ -20,6 +19,10 @@ const App = () => {
     } catch (error) {
       console.error("Error fetching search results:", error);
     }
+  };
+
+  const clearResults = () => {
+    setResults([]);
   };
 
   return (
@@ -38,7 +41,7 @@ const App = () => {
         subtitle={"Search engine for Tübingen"}
       />
       <div style={{ width: "60%" }}>
-        <SearchContainer onSearch={handleSearch} />
+        <SearchContainer onSearch={handleSearch} onClear={clearResults} />
       </div>
       <div style={{ width: "50%", marginTop: "20px" }}>
         <SearchResults results={results} />

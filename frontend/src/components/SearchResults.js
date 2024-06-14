@@ -14,7 +14,6 @@ const SearchResults = ({ results }) => {
   const endIndex = startIndex + resultsPerPage;
   const currentResults = results.slice(startIndex, endIndex);
 
-  // Navigationsfunktionen
   const goToPage = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
