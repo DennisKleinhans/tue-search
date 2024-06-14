@@ -2,12 +2,33 @@ import React from "react";
 
 const ResultItem = ({ result }) => {
   return (
-    <div style={{ border: "1px solid #ccc", padding: "16px", margin: "8px 0" }}>
-      <h2>{result.title}</h2>
-      <p>{result.description}</p>
-      <a href={result.url} target="_blank" rel="noopener noreferrer">
-        {result.url}
+    <div
+      style={{
+        margin: "20px 0",
+        padding: "10px",
+      }}
+    >
+      <a
+        href={result.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          textDecoration: "none",
+          color: "#1a0dab",
+          fontSize: "18px",
+          fontWeight: "bold",
+        }}
+        onMouseOver={(e) => (e.target.style.textDecoration = "underline")}
+        onMouseOut={(e) => (e.target.style.textDecoration = "none")}
+      >
+        {result.title}
       </a>
+      <div style={{ color: "#006621", fontSize: "14px", margin: "5px 0" }}>
+        {result.url}
+      </div>
+      <p style={{ color: "#545454", fontSize: "14px", margin: "5px 0" }}>
+        {result.description}
+      </p>
     </div>
   );
 };

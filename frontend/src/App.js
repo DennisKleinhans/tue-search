@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import SearchBar from "./components/SearchBar";
 import SearchResults from "./components/SearchResults";
 import { getExampleResults } from "./utils";
+import Title from "./components/Title";
 
 const App = () => {
   const [query, setQuery] = useState("");
@@ -24,13 +25,22 @@ const App = () => {
       style={{
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
+        alignItems: "right",
         height: "100vh",
+        marginLeft: "10vw",
       }}
     >
-      <h1>TüSearch</h1>
-      <SearchBar onSearch={handleSearch} />
-      <SearchResults results={results} />
+      <Title
+        titlePrefix={"TÜ"}
+        titleSuffix={"Search"}
+        subtitle={"Die Suchmaschine für Tübingen"}
+      />
+      <div style={{ width: "60%" }}>
+        <SearchBar onSearch={handleSearch} />
+      </div>
+      <div style={{ width: "50%", marginTop: "20px" }}>
+        <SearchResults results={results} />
+      </div>
     </div>
   );
 };
