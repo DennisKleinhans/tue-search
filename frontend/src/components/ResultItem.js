@@ -15,7 +15,7 @@ const ResultItem = ({ result }) => {
         style={{
           textDecoration: "none",
           color: "#1a0dab",
-          fontSize: "18px",
+          fontSize: "20px",
           fontWeight: "bold",
         }}
         onMouseOver={(e) => (e.target.style.textDecoration = "underline")}
@@ -26,7 +26,7 @@ const ResultItem = ({ result }) => {
       <div style={{ color: "#006621", fontSize: "14px", margin: "5px 0" }}>
         {result.url}
       </div>
-      <p style={{ color: "#545454", fontSize: "14px", margin: "5px 0" }}>
+      <p style={{ color: "#545454", fontSize: "16px", margin: "5px 0" }}>
         {result.description}
       </p>
     </div>

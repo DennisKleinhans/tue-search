@@ -20,9 +20,7 @@ const Title = ({ titlePrefix, titleSuffix, subtitle }) => {
         >
           <Typography variant="h2" component="h1" gutterBottom>
             <span style={{ color: "#ffcc00" }}>{titlePrefix}</span>
-            <span style={{ color: "red", marginLeft: "5px" }}>
-              {titleSuffix}
-            </span>
+            <span style={{ color: "red" }}>{titleSuffix}</span>
           </Typography>
           <div style={{ marginLeft: "25px" }}>
             <Typography variant="subtitle1" color="textSecondary" mt={-4}>
