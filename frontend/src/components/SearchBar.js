@@ -8,7 +8,7 @@ import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
 import DriveFolderUploadIcon from "@mui/icons-material/DriveFolderUpload";
 
-const SearchBar = ({ onSearch, onBatchSearch }) => {
+const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
   const [query, setQuery] = useState("");
 
   const handleSearch = () => {
@@ -34,9 +34,10 @@ const SearchBar = ({ onSearch, onBatchSearch }) => {
   };
 
   return (
-    <Box display="flex" justifyContent="center" width="60%">
+    <Box display="flex" justifyContent="center" width={width}>
       <TextField
         variant="outlined"
+        size="small"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyPress={handleKeyPress}
@@ -69,14 +70,11 @@ const SearchBar = ({ onSearch, onBatchSearch }) => {
             </InputAdornment>
           ),
           style: {
-            borderRadius: 20,
+            borderRadius: 100,
           },
         }}
         sx={{
-          width: "60%",
-          "& .MuiOutlinedInput-root": {
-            borderRadius: "40px",
-          },
+          width: { width },
         }}
       />
     </Box>
