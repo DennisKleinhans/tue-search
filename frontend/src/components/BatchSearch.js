@@ -22,9 +22,6 @@ const BatchSearch = () => {
 
   return (
     <div style={{ marginBottom: "20px" }}>
-      <Typography variant="h6" gutterBottom>
-        Batch Search
-      </Typography>
       <div style={{ marginBottom: "10px" }}>
         <input
           accept=".txt"
