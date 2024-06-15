@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 import SearchResults from "./components/SearchResults";
 import { getExampleResults } from "./utils";
-import Title from "./components/Title";
 import StartPage from "./components/StartPage";
+import Header from "./components/Header";
 import "./App.css";
-import SearchBar from "./components/SearchBar";
 
 const App = () => {
   const [query, setQuery] = useState("");
@@ -41,19 +40,11 @@ const App = () => {
             flexDirection: "column",
             alignItems: "right",
             height: "100%",
-            marginLeft: "10vw",
+            width: "100%",
           }}
         >
-          <Title
-            titlePrefix={"TÜ"}
-            titleSuffix={"Search"}
-            subtitle={"Search engine for Tübingen"}
-          />
-          <SearchBar
-            onSearch={handleSearch}
-            onBatchSearch={handleBatchSearch}
-          />
-          <div style={{ width: "50%", marginTop: "20px" }}>
+          <Header onSearch={handleSearch} onBatchSearch={handleBatchSearch} />
+          <div style={{ width: "60%", marginTop: "20px", marginLeft: "250px" }}>
             <SearchResults results={results} />
           </div>
         </div>
