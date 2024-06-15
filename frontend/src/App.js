@@ -41,9 +41,7 @@ const App = () => {
         titleSuffix={"Search"}
         subtitle={"Search engine for Tübingen"}
       />
-      <div style={{ width: "60%" }}>
-        <SearchContainer onSearch={handleSearch} onClear={clearResults} />
-      </div>
+      <SearchContainer onSearch={handleSearch} onClear={clearResults} />
       <div style={{ width: "50%", marginTop: "20px" }}>
         <SearchResults results={results} />
       </div>

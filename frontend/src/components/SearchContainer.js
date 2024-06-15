@@ -14,7 +14,17 @@ const SearchContainer = ({ onSearch, onClear }) => {
   };
 
   return (
-    <Box>
+    <Box
+      sx={{
+        position: "sticky",
+        top: 0,
+        zIndex: 1000,
+        backgroundColor: "white",
+        width: "60%",
+        paddingBottom: 2,
+        marginBottom: -4,
+      }}
+    >
       <Box>
         <FormControlLabel
           control={<Switch checked={batchMode} onChange={handleToggle} />}

@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 
 const Title = ({ titlePrefix, titleSuffix, subtitle }) => {
   return (
-    <Box textAlign="left" mb={4} mt={6}>
+    <Box textAlign="left" mb={2} mt={6}>
       <div style={{ display: "flex", alignItems: "center" }}>
         <img
           src={process.env.PUBLIC_URL + "/img/wappen.png"}
