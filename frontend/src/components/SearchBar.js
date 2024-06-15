@@ -7,6 +7,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
 import DriveFolderUploadIcon from "@mui/icons-material/DriveFolderUpload";
+import BatchUpload from "./BatchUplaod";
 
 const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
   const [query, setQuery] = useState("");
@@ -64,9 +65,7 @@ const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
               <IconButton onClick={handleSearch}>
                 <SearchIcon />
               </IconButton>
-              <IconButton onClick={handleBatchSearch}>
-                <DriveFolderUploadIcon />
-              </IconButton>
+              <BatchUpload onBatchSearch={handleBatchSearch} />
             </InputAdornment>
           ),
           style: {

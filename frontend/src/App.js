@@ -25,10 +25,6 @@ const App = () => {
 
   const handleBatchSearch = async (searchQueries) => {};
 
-  const clearResults = () => {
-    setResults([]);
-  };
-
   return (
     <div className="App">
       {!hasSearched ? (
