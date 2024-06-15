@@ -2,14 +2,19 @@ import React from "react";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 
-const Title = ({ titlePrefix, titleSuffix, subtitle }) => {
+const Title = ({ titlePrefix, titleSuffix, subtitle, size = 1 }) => {
+  const scaleFactor = size;
+
   return (
-    <Box textAlign="left" mb={2} mt={6}>
+    <Box textAlign="left">
       <div style={{ display: "flex", alignItems: "center" }}>
         <img
           src={process.env.PUBLIC_URL + "/img/wappen.png"}
           alt="Tübingen Wappen"
-          style={{ width: "50px", marginRight: "10px" }}
+          style={{
+            width: `${50 * scaleFactor}px`,
+            marginRight: `${10 * scaleFactor}px`,
+          }}
         />
         <div
           style={{
@@ -18,15 +23,23 @@ const Title = ({ titlePrefix, titleSuffix, subtitle }) => {
             alignItems: "flex-start",
           }}
         >
-          <Typography variant="h2" component="h1" gutterBottom>
+          <Typography
+            variant="h5"
+            component="h1"
+            gutterBottom
+            style={{ fontSize: `${2.125 * scaleFactor}rem` }}
+          >
             <span style={{ color: "#ffcc00" }}>{titlePrefix}</span>
             <span style={{ color: "red" }}>{titleSuffix}</span>
           </Typography>
-          <div style={{ marginLeft: "25px" }}>
-            <Typography variant="subtitle1" color="textSecondary" mt={-4}>
-              {subtitle}
-            </Typography>
-          </div>
+          <Typography
+            variant="subtitle1"
+            color="textSecondary"
+            mt={`${-20 * scaleFactor}px`}
+            style={{ fontSize: `${1 * scaleFactor}rem` }}
+          >
+            {subtitle}
+          </Typography>
         </div>
       </div>
     </Box>

@@ -18,7 +18,9 @@ const StartPage = ({ onSearch, onBatchSearch }) => {
         titlePrefix={"TÜ"}
         titleSuffix={"Search"}
         subtitle={"Search Engine for Tübingen"}
+        size={2}
       />
+      <div style={{ height: "20px" }} />
       <SearchBar onSearch={onSearch} onBatchSearch={onBatchSearch} />
     </div>
   );
