@@ -9,7 +9,9 @@ const BatchUpload = ({ onBatchSearch }) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result;
-        const queries = text.split("\n").filter(Boolean);
+        const queries = text
+          .split("\n")
+          .filter((query) => query.trim() !== "" && query.trim() !== " ");
         onBatchSearch(queries);
       };
       reader.readAsText(file);

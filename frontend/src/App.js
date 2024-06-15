@@ -23,7 +23,9 @@ const App = () => {
     }
   };
 
-  const handleBatchSearch = async (searchQueries) => {};
+  const handleBatchSearch = async (searchQueries) => {
+    console.log("Batch search queries:", searchQueries);
+  };
 
   return (
     <div className="App">

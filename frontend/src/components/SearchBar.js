@@ -6,21 +6,20 @@ import ClearIcon from "@mui/icons-material/Clear";
 import InputAdornment from "@mui/material/InputAdornment";
 import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
-import DriveFolderUploadIcon from "@mui/icons-material/DriveFolderUpload";
 import BatchUpload from "./BatchUplaod";
 
 const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
   const [query, setQuery] = useState("");
 
-  const handleSearch = () => {
+  const handleSearch = (query) => {
     if (onSearch) {
       onSearch(query);
     }
   };
 
-  const handleBatchSearch = () => {
+  const handleBatchSearch = (queries) => {
     if (onBatchSearch) {
-      onBatchSearch(query);
+      onBatchSearch(queries);
     }
   };
 
