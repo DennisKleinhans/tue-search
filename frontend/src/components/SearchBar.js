@@ -6,13 +6,20 @@ import ClearIcon from "@mui/icons-material/Clear";
 import InputAdornment from "@mui/material/InputAdornment";
 import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
+import DriveFolderUploadIcon from "@mui/icons-material/DriveFolderUpload";
 
-const SearchBar = ({ onSearch }) => {
+const SearchBar = ({ onSearch, onBatchSearch }) => {
   const [query, setQuery] = useState("");
 
   const handleSearch = () => {
     if (onSearch) {
       onSearch(query);
+    }
+  };
+
+  const handleBatchSearch = () => {
+    if (onBatchSearch) {
+      onBatchSearch(query);
     }
   };
 
@@ -27,7 +34,7 @@ const SearchBar = ({ onSearch }) => {
   };
 
   return (
-    <Box display="flex">
+    <Box display="flex" justifyContent="center" width="60%">
       <TextField
         variant="outlined"
         value={query}
@@ -55,6 +62,9 @@ const SearchBar = ({ onSearch }) => {
               />
               <IconButton onClick={handleSearch}>
                 <SearchIcon />
+              </IconButton>
+              <IconButton onClick={handleBatchSearch}>
+                <DriveFolderUploadIcon />
               </IconButton>
             </InputAdornment>
           ),
