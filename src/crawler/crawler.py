@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 from urllib.parse import urlparse
 
 import requests
+import sqlitecloud
 from bs4 import BeautifulSoup
 from oauthlib.oauth2 import BackendApplicationClient
 from playwright.sync_api import BrowserContext
@@ -22,6 +23,7 @@ from src.crawler.configs import CRAWLER_OAUTH_CLIENT_SECRET
 from src.crawler.configs import CRAWLER_OAUTH_TOKEN_URL
 from src.crawler.initial_websites import INITIAL_WEBSITES
 from src.crawler.html_utils import web_html_cleanup, check_if_tuebingen_in_text
+from src.crawler.sql_utils import create_table_if_not_exists, insert_document
 
 import logging
 
@@ -285,24 +287,35 @@ class Crawler():
 
 
 if __name__ == "__main__":
-    # create tmp directory
-    os.makedirs("tmp", exist_ok=True)
     
-    # create dataframe with id, url, title, and document
-    df = pd.DataFrame(columns=["id", "url", "title", "document"])
+    # Open the connection to SQLite Cloud
+    conn = sqlitecloud.connect("sqlitecloud://cyd2d2juiz.sqlite.cloud:8860?apikey=xZXTNaxWuKM6ryHCVELzSVnT3KC3AubraCDuwFyxKJ4")
+    db_name = "documents"
+    conn.execute(f"USE DATABASE {db_name}")
+    cursor = conn.cursor()
     
-    for website in INITIAL_WEBSITES:
-        connector = Crawler(website, CRAWLER_VALID_SETTINGS.RECURSIVE.value, languages=["en"])
-        document_batches = connector.load_from_state()
-        for batch in document_batches:
-            if batch:
-                for url, doc, title in batch:
-                    logger.info(f"URL: {url}")
-                    logger.info(f"Title: {title}")
-                    logger.info(f"Document: {doc[:100]}")
-                    # concat to dataframe
-                    df = pd.concat([df, pd.DataFrame({"id": [len(df)], "url": [url], "title": [title], "document": [doc]})])
-    # save dataframe to csv
-    df.to_csv("tmp/documents.csv", index=False)
+    # Create table if not exists
+    create_table_if_not_exists(cursor)
+    
+    counter = 0
+    try: 
+            
+        for website in INITIAL_WEBSITES:
+            connector = Crawler(website, CRAWLER_VALID_SETTINGS.RECURSIVE.value, languages=["en"])
+            document_batches = connector.load_from_state()
+            for batch in document_batches:
+                if batch:
+                    for url, doc, title in batch:
+                        logger.info(f"Title: {title} - URL: {url}")
+                        success = insert_document(cursor, url, title, doc)
+                        if success: counter += 1 
+                        conn.commit()   
+    except Exception as e:
+        logger.error(f"Failed to fetch '{website}': {e}")
+    finally:
+        conn.close()
+    
+    logger.info(f"Crawled {counter} new documents.")
+
                 
     
