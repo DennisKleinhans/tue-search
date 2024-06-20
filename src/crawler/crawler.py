@@ -16,12 +16,12 @@ from playwright.sync_api import sync_playwright
 from requests_oauthlib import OAuth2Session  # type:ignore
 from langdetect import detect
 
-from src.crawler.configs import INDEX_BATCH_SIZE
-from src.crawler.configs import CRAWLER_OAUTH_CLIENT_ID
-from src.crawler.configs import CRAWLER_OAUTH_CLIENT_SECRET
-from src.crawler.configs import CRAWLER_OAUTH_TOKEN_URL
-from src.crawler.initial_websites import INITIAL_WEBSITES
-from src.crawler.html_utils import web_html_cleanup, check_if_tuebingen_in_text
+from configs import INDEX_BATCH_SIZE
+from configs import CRAWLER_OAUTH_CLIENT_ID
+from configs import CRAWLER_OAUTH_CLIENT_SECRET
+from configs import CRAWLER_OAUTH_TOKEN_URL
+from initial_websites import INITIAL_WEBSITES
+from html_utils import web_html_cleanup, check_if_tuebingen_in_text
 
 import logging
 
