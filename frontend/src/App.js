@@ -24,7 +24,20 @@ const App = () => {
   };
 
   const handleBatchSearch = async (searchQueries) => {
-    console.log("Batch search queries:", searchQueries);
+    setHasSearched(true);
+    // simulate batch search results
+    const results = searchQueries.map((query) => `${query}: result`);
+
+    // automatically download the batch results
+    const element = document.createElement("a");
+    const file = new Blob([results.join("\n")], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = "batch_results.txt";
+    document.body.appendChild(element);
+    element.click();
+
+    // clean up the DOM
+    document.body.removeChild(element);
   };
 
   return (
@@ -36,13 +49,13 @@ const App = () => {
           style={{
             display: "flex",
             flexDirection: "column",
-            alignItems: "right",
+            alignItems: "center",
             height: "100%",
             width: "100%",
           }}
         >
           <Header onSearch={handleSearch} onBatchSearch={handleBatchSearch} />
-          <div style={{ width: "60%", marginTop: "20px", marginLeft: "250px" }}>
+          <div style={{ width: "60%", marginTop: "20px" }}>
             <SearchResults results={results} />
           </div>
         </div>
