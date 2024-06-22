@@ -48,7 +48,9 @@ const EmojiPicker = ({ anchorEl, onClose, onSelectEmoji }) => {
           />
         ))}
       </Tabs>
-      <Box maxHeight="calc(400px - 48px)" overflow="auto">
+      <Box
+        sx={{ maxHeight: "calc(400px - 48px)", overflow: "auto", padding: 1 }}
+      >
         {emojiMap[currentTab].map(([emoji, label]) => (
           <Emoji
             key={emoji}
