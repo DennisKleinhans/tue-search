@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import SearchResults from "./components/SearchResults";
-import { getExampleResults } from "./utils";
+import { getExampleResults } from "./util/utils";
 import StartPage from "./components/StartPage";
 import Header from "./components/Header";
 import "./App.css";
@@ -15,6 +15,7 @@ const App = () => {
     setHasSearched(true);
 
     try {
+      console.log("Searching for:", searchQuery);
       // simulate API request
       const data = getExampleResults();
       setResults(data);

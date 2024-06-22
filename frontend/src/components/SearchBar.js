@@ -6,20 +6,30 @@ import ClearIcon from "@mui/icons-material/Clear";
 import InputAdornment from "@mui/material/InputAdornment";
 import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
-import BatchUpload from "./BatchUplaod";
+import DriveFolderUploadIcon from "@mui/icons-material/DriveFolderUpload";
+import EmojiPicker from "./EmojiPicker"; // Passe den Import-Pfad entsprechend deiner Projektstruktur an
+import { emojiMappings, sortedEmojiKeys } from "../util/emojiMappings";
+import { replaceUnicodeEmojis } from "../util/utils";
 
 const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
   const [query, setQuery] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const handleSearch = (query) => {
-    if (onSearch) {
-      onSearch(query);
+  const handleSearch = () => {
+    if (onSearch && query) {
+      let translatedQuery = replaceUnicodeEmojis(query, emojiMappings);
+
+      // clean up query
+      translatedQuery = translatedQuery.replace(/\s+/g, " ").trim();
+
+      console.log("Translated query:", translatedQuery);
+      onSearch(translatedQuery);
     }
   };
 
-  const handleBatchSearch = (queries) => {
+  const handleBatchSearch = () => {
     if (onBatchSearch) {
-      onBatchSearch(queries);
+      onBatchSearch(query);
     }
   };
 
@@ -33,8 +43,18 @@ const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
     }
   };
 
+  const handleSelectEmoji = (emoji) => {
+    setQuery((prevQuery) => prevQuery + emoji);
+  };
+
   return (
-    <Box display="flex" justifyContent="center" width={width}>
+    <Box
+      display="flex"
+      justifyContent="center"
+      width={width}
+      flexDirection="column"
+      alignItems="center"
+    >
       <TextField
         variant="outlined"
         size="small"
@@ -64,7 +84,15 @@ const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
               <IconButton onClick={handleSearch}>
                 <SearchIcon />
               </IconButton>
-              <BatchUpload onBatchSearch={handleBatchSearch} />
+              <IconButton onClick={handleBatchSearch}>
+                <DriveFolderUploadIcon />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={() => setShowEmojiPicker((prev) => !prev)}
+              >
+                😀
+              </IconButton>
             </InputAdornment>
           ),
           style: {
@@ -75,6 +103,13 @@ const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
           width: { width },
         }}
       />
+      {showEmojiPicker && (
+        <EmojiPicker
+          anchorEl={document.querySelector(".MuiInputBase-root")}
+          onClose={() => setShowEmojiPicker(false)}
+          onSelectEmoji={handleSelectEmoji}
+        />
+      )}
     </Box>
   );
 };

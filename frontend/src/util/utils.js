@@ -1,3 +1,5 @@
+import { sortedEmojiKeys } from "./emojiMappings";
+
 export const getExampleResults = () => {
   return [
     {
@@ -154,3 +156,27 @@ export const getExampleResults = () => {
     },
   ];
 };
+
+export function replaceUnicodeEmojis(input, emojiReplacements) {
+  let translatedInput = "";
+  let i = 0;
+
+  while (i < input.length) {
+    let matched = false;
+
+    for (let emoji of sortedEmojiKeys) {
+      if (input.startsWith(emoji, i)) {
+        translatedInput += emojiReplacements.get(emoji) + " ";
+        i += emoji.length;
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      translatedInput += input[i];
+      i++;
+    }
+  }
+  return translatedInput;
+}
