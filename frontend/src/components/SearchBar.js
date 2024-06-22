@@ -8,8 +8,9 @@ import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
 import DriveFolderUploadIcon from "@mui/icons-material/DriveFolderUpload";
 import EmojiPicker from "./EmojiPicker"; // Passe den Import-Pfad entsprechend deiner Projektstruktur an
-import { emojiMappings, sortedEmojiKeys } from "../util/emojiMappings";
+import { emojiMappings } from "../util/emojiMappings";
 import { replaceUnicodeEmojis } from "../util/utils";
+import BatchUpload from "./BatchUplaod";
 
 const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
   const [query, setQuery] = useState("");
@@ -27,9 +28,9 @@ const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
     }
   };
 
-  const handleBatchSearch = () => {
+  const handleBatchSearch = (queries) => {
     if (onBatchSearch) {
-      onBatchSearch(query);
+      onBatchSearch(queries);
     }
   };
 
@@ -84,9 +85,7 @@ const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
               <IconButton onClick={handleSearch}>
                 <SearchIcon />
               </IconButton>
-              <IconButton onClick={handleBatchSearch}>
-                <DriveFolderUploadIcon />
-              </IconButton>
+              <BatchUpload onBatchSearch={handleBatchSearch} />
               <IconButton
                 size="small"
                 onClick={() => setShowEmojiPicker((prev) => !prev)}
