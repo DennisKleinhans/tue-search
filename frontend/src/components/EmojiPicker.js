@@ -1,5 +1,3 @@
-// EmojiPicker.js
-
 import React, { useState } from "react";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
@@ -7,6 +5,7 @@ import Box from "@mui/material/Box";
 import Popover from "@mui/material/Popover";
 import Emoji from "./Emoji"; // Passe den Import-Pfad entsprechend deiner Projektstruktur an
 import { emojiMap } from "../util/emojiMappings";
+import { constructEmojiCategoryLabel } from "../util/utils";
 
 const EmojiPicker = ({ anchorEl, onClose, onSelectEmoji }) => {
   const [currentTab, setCurrentTab] = useState("persons"); // Startkategorie festlegen
@@ -24,15 +23,15 @@ const EmojiPicker = ({ anchorEl, onClose, onSelectEmoji }) => {
       onClose={onClose}
       anchorOrigin={{
         vertical: "bottom",
-        horizontal: "center", // Mittig unter dem Anchor
+        horizontal: "center",
       }}
       transformOrigin={{
         vertical: "top",
         horizontal: "center",
       }}
       sx={{
-        maxWidth: 600, // Feste Breite für den EmojiPicker
-        maxHeight: 400, // Feste Höhe für den EmojiPicker
+        maxWidth: 600,
+        maxHeight: 400,
       }}
     >
       <Tabs
@@ -42,15 +41,14 @@ const EmojiPicker = ({ anchorEl, onClose, onSelectEmoji }) => {
         scrollButtons="auto"
       >
         {emojiCategories.map((category) => (
-          <Tab key={category} label={category} value={category} />
+          <Tab
+            key={category}
+            label={constructEmojiCategoryLabel(category)}
+            value={category}
+          />
         ))}
       </Tabs>
       <Box maxHeight="calc(400px - 48px)" overflow="auto">
-        {/* 
-          48px abziehen, um Platz für die Tabs zu lassen. 
-          Höhe des Emoji-Bereichs bleibt fest bei 400px, 
-          und es wird eine Scrollbar hinzugefügt, falls notwendig.
-        */}
         {emojiMap[currentTab].map(([emoji, label]) => (
           <Emoji
             key={emoji}

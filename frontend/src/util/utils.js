@@ -180,3 +180,20 @@ export function replaceUnicodeEmojis(input, emojiReplacements) {
   }
   return translatedInput;
 }
+
+export function constructEmojiCategoryLabel(category) {
+  switch (category) {
+    case "persons":
+      return "Persons & Gesture";
+    case "food":
+      return "Food & Drinks";
+    case "travelAndPlaces":
+      return "Travel";
+    case "activity":
+      return "Aktivities";
+    case "objects":
+      return "Objects";
+    case "animalAndNature":
+      return "Animals & Nature";
+  }
+}
