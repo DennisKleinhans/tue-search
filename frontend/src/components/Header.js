@@ -3,7 +3,7 @@ import SearchBar from "./SearchBar";
 import Title from "./Title";
 import Box from "@mui/material/Box";
 
-const Header = ({ onSearch, onBatchSearch }) => {
+const Header = ({ query, setQuery, onSearch, onBatchSearch }) => {
   return (
     <Box
       sx={{
@@ -44,6 +44,8 @@ const Header = ({ onSearch, onBatchSearch }) => {
         }}
       >
         <SearchBar
+          query={query}
+          setQuery={setQuery}
           onSearch={onSearch}
           onBatchSearch={onBatchSearch}
           width={"65%"}

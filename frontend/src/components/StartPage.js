@@ -2,7 +2,7 @@ import React from "react";
 import Title from "./Title";
 import SearchBar from "./SearchBar";
 
-const StartPage = ({ onSearch, onBatchSearch }) => {
+const StartPage = ({ query, setQuery, onSearch, onBatchSearch }) => {
   return (
     <div
       style={{
@@ -21,7 +21,12 @@ const StartPage = ({ onSearch, onBatchSearch }) => {
         size={2}
       />
       <div style={{ height: "20px" }} />
-      <SearchBar onSearch={onSearch} onBatchSearch={onBatchSearch} />
+      <SearchBar
+        query={query}
+        setQuery={setQuery}
+        onSearch={onSearch}
+        onBatchSearch={onBatchSearch}
+      />
     </div>
   );
 };

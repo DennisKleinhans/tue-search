@@ -7,12 +7,13 @@ import "./App.css";
 
 const App = () => {
   const [query, setQuery] = useState("");
+  const [translatedQuery, setTranslatedQuery] = useState("");
   const [results, setResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = async (searchQuery) => {
-    setQuery(searchQuery);
     setHasSearched(true);
+    setTranslatedQuery(searchQuery);
 
     try {
       console.log("Searching for:", searchQuery);
@@ -25,7 +26,6 @@ const App = () => {
   };
 
   const handleBatchSearch = async (searchQueries) => {
-    setHasSearched(true);
     // simulate batch search results
     const results = searchQueries.map((query) => `${query}: result`);
 
@@ -44,7 +44,12 @@ const App = () => {
   return (
     <div className="App">
       {!hasSearched ? (
-        <StartPage onSearch={handleSearch} onBatchSearch={handleBatchSearch} />
+        <StartPage
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          onBatchSearch={handleBatchSearch}
+        />
       ) : (
         <div
           style={{
@@ -55,7 +60,12 @@ const App = () => {
             width: "100%",
           }}
         >
-          <Header onSearch={handleSearch} onBatchSearch={handleBatchSearch} />
+          <Header
+            query={query}
+            setQuery={setQuery}
+            onSearch={handleSearch}
+            onBatchSearch={handleBatchSearch}
+          />
           <div style={{ width: "60%", marginTop: "20px" }}>
             <SearchResults results={results} />
           </div>

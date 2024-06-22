@@ -6,14 +6,18 @@ import ClearIcon from "@mui/icons-material/Clear";
 import InputAdornment from "@mui/material/InputAdornment";
 import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
-import DriveFolderUploadIcon from "@mui/icons-material/DriveFolderUpload";
 import EmojiPicker from "./EmojiPicker"; // Passe den Import-Pfad entsprechend deiner Projektstruktur an
 import { emojiMappings } from "../util/emojiMappings";
 import { replaceUnicodeEmojis } from "../util/utils";
 import BatchUpload from "./BatchUplaod";
 
-const SearchBar = ({ onSearch, onBatchSearch, width = "60%" }) => {
-  const [query, setQuery] = useState("");
+const SearchBar = ({
+  query,
+  setQuery,
+  onSearch,
+  onBatchSearch,
+  width = "60%",
+}) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const handleSearch = () => {
