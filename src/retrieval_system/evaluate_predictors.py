@@ -1,5 +1,5 @@
 import numpy as np
-from dataset_utils import prepare_msmacro_dataset
+from dataset_utils import prepare_msmarco_dataset
 from Predictors import RandomPredictor, QueryLikelihoodPredictor, TFIDFPredictor
 
 # recall of the top k documents
@@ -19,7 +19,7 @@ def evaluate_topk_recall(preds, test, max_k=10):
 
 
 if __name__ == "__main__":
-    msmacro_train, msmacro_test = prepare_msmacro_dataset(
+    msmarco_train, msmarco_test = prepare_msmarco_dataset(
         # drop_idx=10000
     )
 
@@ -29,15 +29,15 @@ if __name__ == "__main__":
     # evaluate Random predictor
     randomPred = RandomPredictor()
     print("Random Predictor Performance")
-    randomPred.evaluate(msmacro_test, evaluate_topk_recall)
+    randomPred.evaluate(msmarco_test, evaluate_topk_recall)
 
     # evaluate query likelihood predictor
     QLPred = QueryLikelihoodPredictor()
     print("Query Likelihood Predictor Performance")
-    QLPred.evaluate(msmacro_test, evaluate_topk_recall)
+    QLPred.evaluate(msmarco_test, evaluate_topk_recall)
 
     # evaluate tfidf predictor
     TFIDFPred = TFIDFPredictor()
     print("TFIDF Predictor Performance")
-    TFIDFPred.train(msmacro_train)
-    TFIDFPred.evaluate(msmacro_test, evaluate_topk_recall)
+    TFIDFPred.train(msmarco_train)
+    TFIDFPred.evaluate(msmarco_test, evaluate_topk_recall)

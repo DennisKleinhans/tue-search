@@ -2,17 +2,17 @@ from datasets import load_dataset, Dataset
 import numpy as np
 
 
-def prepare_msmacro_dataset(train_size=0.85, drop_idx=None, tokenizer_model="bert-base-uncased"):
+def prepare_msmarco_dataset(train_size=0.85, drop_idx=None):
     print("Preparing dataset...")
-    msmacro = load_dataset("microsoft/ms_marco", "v2.1", split="train", verification_mode="no_checks")
+    msmarco = load_dataset("microsoft/ms_marco", "v2.1", split="train", verification_mode="no_checks")
 
     if drop_idx is not None:
-        msmacro = Dataset.from_dict(msmacro[:drop_idx])
+        msmarco = Dataset.from_dict(msmarco[:drop_idx])
 
-    breakpoint = int(np.ceil(len(msmacro)*train_size))
-    msmacro_train = Dataset.from_dict(msmacro[:breakpoint])
-    msmacro_test = Dataset.from_dict(msmacro[breakpoint:])
-    print(f"train size: {len(msmacro_train)}, test size: {len(msmacro_test)}")
+    breakpoint = int(np.ceil(len(msmarco)*train_size))
+    msmarco_train = Dataset.from_dict(msmarco[:breakpoint])
+    msmarco_test = Dataset.from_dict(msmarco[breakpoint:])
+    print(f"train size: {len(msmarco_train)}, test size: {len(msmarco_test)}")
     print(" - done")
 
-    return msmacro_train, msmacro_test
+    return msmarco_train, msmarco_test
