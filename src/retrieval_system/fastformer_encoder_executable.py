@@ -155,6 +155,7 @@ model_config = BertConfig.from_dict(
         "num_hidden_layers": 1, # 2
         "hidden_act": "gelu", # "gelu"
         "loss_fn": "mse",
+        "softmax_temperature": 1.0, # softmax temperature scaling, default is 1
         "num_attention_heads": 16, # 16
         "intermediate_size": FFN_LAYER_SIZE, # 256
         "max_position_embeddings": EMBEDDING_SIZE,
