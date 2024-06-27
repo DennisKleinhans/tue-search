@@ -15,7 +15,7 @@ class AttentionPooling(nn.Module):
 
     def init_weights(self, module):
         if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(mean=self.config.initializer_mean, std=self.config.initializer_range)
         if isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
 
@@ -59,7 +59,7 @@ class FastSelfAttention(nn.Module):
 
     def init_weights(self, module):
         if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(mean=self.config.initializer_mean, std=self.config.initializer_range)
         if isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
 
@@ -176,7 +176,7 @@ class FastformerEncoder(nn.Module):
 
     def init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(mean=self.config.initializer_mean, std=self.config.initializer_range)
             if isinstance(module, (nn.Embedding)) and module.padding_idx is not None:
                 with torch.no_grad():
                     module.weight[module.padding_idx].fill_(0)
@@ -228,12 +228,19 @@ class Model(torch.nn.Module):
             config.num_embeddings, config.hidden_size, padding_idx=0
         )
         self.fastformer_model = FastformerEncoder(config)
-        self.criterion = nn.MSELoss()
+        criteria = {
+            "mse": nn.MSELoss(), # not useful for ranking, assumes normal dist!!!
+            # "mrl": lambda s, t: nn.MarginRankingLoss(margin=1.0)(s, t, torch.full(s.shape, -1.0).cuda(0)),
+            # "cos": lambda s, t: nn.CosineEmbeddingLoss(margin=1.0)(s, t, torch.full(s.shape, -1.0).cuda(0)),
+            # "hinge": nn.HingeEmbeddingLoss(margin=1.0)
+            "cel": nn.CrossEntropyLoss()
+        }
+        self.criterion = criteria[self.config.loss_fn]
         self.apply(self.init_weights)
 
     def init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(mean=self.config.initializer_mean, std=self.config.initializer_range)
             if isinstance(module, (nn.Embedding)) and module.padding_idx is not None:
                 with torch.no_grad():
                     module.weight[module.padding_idx].fill_(0)
