@@ -224,31 +224,57 @@ class FastformerEncoder(nn.Module):
 
 
 class SDE(torch.nn.Module):
-
     def __init__(self, config):
         super(SDE, self).__init__()
         self.config = config
-        self.dense_linear = nn.Linear(config.hidden_size, config.num_labels)
+        self.dense_linear = nn.Linear(int(config.hidden_size/2), config.num_labels)
         self.word_embedding = nn.Embedding(
             config.num_embeddings, config.hidden_size, padding_idx=0
         )
         self.shared_fastformer_encoder = FastformerEncoder(config)
-        self.criterion = self._ContrastiveLoss
+
+        criteria = {
+            # "mse": nn.MSELoss(), # not useful for ranking, assumes normal dist!!!
+            "mrl": nn.MarginRankingLoss(margin=1.0),
+            "cos": nn.CosineEmbeddingLoss(margin=1.0),
+            "contrastive": self._ContrastiveLoss
+        }
+        try:
+            self.criterion = criteria[self.config.loss_fn]
+        except KeyError:
+            raise ValueError(f"The loss function '{self.config.loss_fn}' is not implemented!")
+        
         self.apply(self.init_weights)
 
     def _ContrastiveLoss(self, queries, documents, targets):
+        # terminology based on https://arxiv.org/abs/2204.07120
         # apply_() only works on the cpu :,(
         queries = queries.to("cpu").detach()
         documents = documents.to("cpu").detach()
         targets = targets.to("cpu").detach()
 
-        cos_dist = lambda a, b: (1-nn.CosineSimilarity()(a, b))
-        tau = self.config.softmax_temperature
-        ai = documents[targets] # ground truth
+        def debug(a, b):
+            print(a.shape)
+            print(b.shape)
+            return (1-nn.CosineSimilarity()(a, b))
 
-        elem_wise = np.vectorize(lambda a, b: np.exp(cos_dist(a, b)/tau))
+        cos_dist = lambda a, b: debug(a, b)
+        ten = lambda a: torch.as_tensor(np.array(a)) # inplace list -> tensor conversion
+
+        tau = self.config.softmax_temperature
+        ai = documents[targets.bool()] # ground truth
+        print(f"targets = {targets}")
+
+        # TODO process logits in fixed batches based on the dataset to ensure 1x ground truth doc (ai)
+
+        print(cos_dist(ten(queries[0]), ai))
+        print(cos_dist(ten(queries[0]), ten(documents[0])))
+
+        sum_elements = lambda qi: documents.apply_(
+            lambda aj: cos_dist(qi, ten(aj))/tau
+        )
         per_query_loss = queries.apply_(
-            lambda qi: np.exp(cos_dist(qi, ai)/tau)/torch.sum(elem_wise(qi, documents))
+            lambda qi: np.exp(cos_dist(ten(qi), ai)/tau)/torch.sum(sum_elements(ten(qi)))
         )
         return torch.mean(per_query_loss)
 
@@ -273,6 +299,7 @@ class SDE(torch.nn.Module):
         doc_rep = self.shared_fastformer_encoder(doc_embds, doc_mask)
 
         # similarity measuring
-        score = self.dense_linear(torch.cross(qry_rep, doc_rep))# ?!
+        joint_rep = torch.inner(qry_rep, doc_rep)
+        score = self.dense_linear(joint_rep)# ?!
         loss = self.criterion(qry_rep, doc_rep, targets)# ?!
         return loss, score

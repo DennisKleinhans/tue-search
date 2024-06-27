@@ -228,6 +228,7 @@ class Model(torch.nn.Module):
             config.num_embeddings, config.hidden_size, padding_idx=0
         )
         self.fastformer_model = FastformerEncoder(config)
+        
         criteria = {
             "mse": nn.MSELoss(), # not useful for ranking, assumes normal dist!!!
             # "mrl": lambda s, t: nn.MarginRankingLoss(margin=1.0)(s, t, torch.full(s.shape, -1.0).cuda(0)),
@@ -235,7 +236,11 @@ class Model(torch.nn.Module):
             # "hinge": nn.HingeEmbeddingLoss(margin=1.0)
             "cel": nn.CrossEntropyLoss()
         }
-        self.criterion = criteria[self.config.loss_fn]
+        try:
+            self.criterion = criteria[self.config.loss_fn]
+        except KeyError:
+            raise ValueError(f"The loss function '{self.config.loss_fn}' is not implemented!")
+        
         self.apply(self.init_weights)
 
     def init_weights(self, module):
