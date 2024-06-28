@@ -5,3 +5,5 @@ oauthlib
 requests_oauthlib
 langdetect
 pandas
+sqlitecloud
+pysqlite3 
