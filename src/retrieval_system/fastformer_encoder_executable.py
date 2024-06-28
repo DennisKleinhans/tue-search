@@ -2,6 +2,7 @@ from datasets import Dataset, load_dataset, disable_caching, load_from_disk
 from transformers import BertConfig
 from nltk.tokenize import wordpunct_tokenize
 import numpy as np
+from time import time
 import torch
 from Fastformer import Model
 from SiameseDualEncoder import SDE
@@ -11,9 +12,9 @@ import json
 
 MODEL = "SDE" # FF or SDE
 
-PERFORM_RETRIEVAL = False
+PERFORM_RETRIEVAL = True # FF only
 
-LOAD_DATASET_FROM_DISK = True
+LOAD_DATASET_FROM_DISK = False
 DATASET_SAVE_PATH = "data/retrieval_system/"
 CONFIG_SAVE_PATH = "config/retrieval_system/"
 SAVE_PREFIX = f"{MODEL}-"
@@ -36,11 +37,11 @@ def preprocess(string):
 disable_caching()  # needed for vocab generation!!!
 msmarco = load_dataset(
     "microsoft/ms_marco", "v2.1", split="train", verification_mode="no_checks"
-)
+).flatten()
 
 
 # tokenization + vocab creation
-print("tokenizing dataset...")
+print("preprocessing dataset...")
 VOCAB = {
     "<PAD>": 0,
     "<UNK>": 1
@@ -63,6 +64,7 @@ def FF_process_batch(batch):
         for document in batch["passages.passage_text"][i]:
             tokens = preprocess(" ".join([batch["query"][i], document]))
             TOKENIZED_TEXT.append(tokens)
+
             for token in tokens:
                 if token not in VOCAB:
                     VOCAB[token] = len(VOCAB)
@@ -79,17 +81,25 @@ SDE_TARGETS = []
 
 def SDE_process_batch(batch):
     for i in range(len(batch)):
+        query = batch["query"][i]
+
+        # skip queries that have no ground truth documents
+        if sum(batch["passages.is_selected"][i]) == 0:
+            continue
+
         for doc_idx, document in enumerate(batch["passages.passage_text"][i]):
             tokens = preprocess(document)
 
             # update containers for generator
-            SDE_QUERIES.append(preprocess(batch["query"][i]))
+            SDE_QUERIES.append(preprocess(query))
             SDE_DOCUMENTS.append(tokens)
             SDE_TARGETS.append(batch["passages.is_selected"][i][doc_idx])
             
+            # update vocab
             for token in tokens:
                 if token not in VOCAB:
                     VOCAB[token] = len(VOCAB)
+            
     return {}
 
 BATCH_PROCESSING = {
@@ -111,32 +121,88 @@ GENERATOR = {
 }
 
 if LOAD_DATASET_FROM_DISK:
-    preprocessed_dataset = load_from_disk(DATASET_SAVE_PATH+SAVE_PREFIX+"preprocessed_dataset")
+    preprocessed_dataset = load_from_disk(DATASET_SAVE_PATH+SAVE_PREFIX+f"preprocessed_dataset_bs{training_config.batch_size}")
     with open(DATASET_SAVE_PATH+SAVE_PREFIX+"vocab.json", "r", encoding="utf-8") as fs:
         VOCAB = json.load(fs)
         fs.close()
+    print(" - loaded from disk")
 else:
-    msmarco.flatten().map(
+    msmarco.map(
         BATCH_PROCESSING[MODEL],
         batched=True
     )
     preprocessed_dataset = Dataset.from_generator(GENERATOR[MODEL])
+    if training_config.batch_padding and training_config.batch_size >= 10:
+        def SDE_pad_containers_to_batch_size():
+            def _get_random_document(query_not_to_match):
+                idx = np.random.randint(0, len(msmarco))
+                while query_not_to_match == msmarco["query"][idx]:
+                    idx = np.random.randint(0, len(msmarco))
+                docs = msmarco["passages.passage_text"][idx]
+                return docs[np.random.randint(0, len(docs))]
 
-    # for list in [SDE_QUERIES, SDE_DOCUMENTS, SDE_TARGETS]:
-    #     print(list[:5])
-    # print(len(msmarco.flatten()))
-    # print(len(preprocessed_dataset))
-    # exit()
+            current_query = SDE_QUERIES[0]
+            num_docs_per_this_query = 0
+            start = time()
+            i = 0
+            while True:
+                try:
+                    tmp = SDE_QUERIES[i]
+                except IndexError:
+                    break
 
-    preprocessed_dataset.save_to_disk(DATASET_SAVE_PATH+SAVE_PREFIX+"preprocessed_dataset")
+                # debug
+                if i >= 35:
+                    return
+
+                interval = time() - start
+                if interval > 0: # div by zero ;)
+                    print(f" Reading {i+1:>10,d} lines, {(i+1)/interval:>5.2f} queries/sec", end="\r")
+
+                # check for switching query
+                if current_query != SDE_QUERIES[i]:
+                    print(f"i={i}: current_query: {current_query}")
+                    next_query = SDE_QUERIES[i]
+                    next_query_start_idx = i
+                    print(f"i={i}: next_query: {next_query}")
+                    added_entries = 0
+                    while num_docs_per_this_query < training_config.batch_size:
+                        print(num_docs_per_this_query)
+                        SDE_QUERIES.insert(i, current_query)
+                        SDE_DOCUMENTS.insert(i, _get_random_document(current_query))
+                        SDE_TARGETS.insert(i, 0)
+                        num_docs_per_this_query += 1
+                        added_entries += 1
+                    current_query = next_query
+                    i = next_query_start_idx # resume from next query starting entry
+                    print(f"new i: {i}")
+                    num_docs_per_this_query = 0 # reset doc counter
+                    continue
+
+                num_docs_per_this_query += 1
+                i += 1
+            return
+        
+        print(f" batch padding to size {training_config.batch_size}...")
+        SDE_pad_containers_to_batch_size()
+        print(" done")
+        print("SDE_QUERIES")
+        [print(f"{i} {q}") for i, q in enumerate(SDE_QUERIES[:training_config.batch_size*2])]
+        print("SDE_DOCUMENTS")
+        [print(f"{i} {q}") for i, q in enumerate(SDE_DOCUMENTS[:training_config.batch_size*2])]
+        print("SDE_TARGETS") 
+        [print(f"{i} {q}") for i, q in enumerate(SDE_TARGETS[:training_config.batch_size*2])]
+        exit()
+
+    preprocessed_dataset.save_to_disk(DATASET_SAVE_PATH+SAVE_PREFIX+f"preprocessed_dataset_bs{training_config.batch_size}")
     with open(DATASET_SAVE_PATH+SAVE_PREFIX+"vocab.json", "w", encoding="utf-8") as fs:
         json.dump(VOCAB, fs, indent=4)
         fs.close()
+    print(" - done")
 
 # update model params
 model_config.num_embeddings = len(VOCAB)
 model_config.vocab_size = len(VOCAB)
-print(" - done")
 
 
 # index embedding + padding
@@ -174,20 +240,21 @@ EMBEDDING = {
 }
 
 if LOAD_DATASET_FROM_DISK:
-    embedded_dataset = load_from_disk(DATASET_SAVE_PATH+SAVE_PREFIX+"embedded_dataset")
+    embedded_dataset = load_from_disk(DATASET_SAVE_PATH+SAVE_PREFIX+f"embedded_dataset_bs{training_config.batch_size}")
+    print(" - loaded from disk")
 else:
     embedded_dataset = preprocessed_dataset.map(
         EMBEDDING[MODEL], 
         batched=True
     )
-    embedded_dataset.save_to_disk(DATASET_SAVE_PATH+SAVE_PREFIX+"embedded_dataset")
+    embedded_dataset.save_to_disk(DATASET_SAVE_PATH+SAVE_PREFIX+f"embedded_dataset_bs{training_config.batch_size}")
+    print(" - done")
 
 # size = 0
 # for row in embedded_dataset:
 #     if size < len(row["text"]):
 #         size = len(row["text"])
 # print(size)
-print(" - done")
 
 
 print("converting dataset to numpy int32...")
@@ -213,12 +280,13 @@ else:
 
 breakpoint = int(np.ceil(training_config.train_split_size * len(index)))
 train_idx = index[:breakpoint]
-np.random.shuffle(train_idx)
+if not training_config.batch_padding:
+    np.random.shuffle(train_idx)
 test_idx = index[breakpoint:]
 print(" - done")
 
 
-print("training...")
+print(f"training {MODEL}...")
 if MODEL == "FF":
     model = Model(model_config)
 elif MODEL == "SDE":

@@ -227,7 +227,7 @@ class SDE(torch.nn.Module):
     def __init__(self, config):
         super(SDE, self).__init__()
         self.config = config
-        self.dense_linear = nn.Linear(int(config.hidden_size/2), config.num_labels)
+        self.dense_linear = nn.Linear(config.hidden_size, config.num_labels)
         self.word_embedding = nn.Embedding(
             config.num_embeddings, config.hidden_size, padding_idx=0
         )
@@ -299,7 +299,7 @@ class SDE(torch.nn.Module):
         doc_rep = self.shared_fastformer_encoder(doc_embds, doc_mask)
 
         # similarity measuring
-        joint_rep = torch.inner(qry_rep, doc_rep)
-        score = self.dense_linear(joint_rep)# ?!
-        loss = self.criterion(qry_rep, doc_rep, targets)# ?!
+        joint_rep = torch.sum(qry_rep * doc_rep, dim=-1) # elem wise dot
+        score = self.dense_linear(joint_rep) # ?!
+        loss = self.criterion(qry_rep, doc_rep, targets) # ?!
         return loss, score
