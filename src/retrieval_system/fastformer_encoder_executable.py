@@ -140,7 +140,7 @@ else:
                     idx = np.random.randint(0, len(msmarco))
                 docs = msmarco["passages.passage_text"][idx]
                 return docs[np.random.randint(0, len(docs))]
-
+            
             current_query = SDE_QUERIES[0]
             num_docs_per_this_query = 0
             start = time()
@@ -151,36 +151,32 @@ else:
                 except IndexError:
                     break
 
-                # debug
-                if i >= 35:
-                    return
-
                 interval = time() - start
                 if interval > 0: # div by zero ;)
-                    print(f" Reading {i+1:>10,d} lines, {(i+1)/interval:>5.2f} queries/sec", end="\r")
+                    print(" Reading {:>10,d} rows, {:>5.2f} rows/sec".format(i+1,(i+1)/interval), end="\r")
 
                 # check for switching query
                 if current_query != SDE_QUERIES[i]:
-                    print(f"i={i}: current_query: {current_query}")
                     next_query = SDE_QUERIES[i]
-                    next_query_start_idx = i
-                    print(f"i={i}: next_query: {next_query}")
                     added_entries = 0
                     while num_docs_per_this_query < training_config.batch_size:
-                        print(num_docs_per_this_query)
+                        interval = time() - start
+                        if interval > 0: # div by zero ;)
+                            print(" Adding {:>10,d} rows, {:>5.2f} rows/sec".format(added_entries+1,(added_entries+1)/interval), end="\r")
+
                         SDE_QUERIES.insert(i, current_query)
                         SDE_DOCUMENTS.insert(i, _get_random_document(current_query))
                         SDE_TARGETS.insert(i, 0)
+
                         num_docs_per_this_query += 1
                         added_entries += 1
-                    current_query = next_query
-                    i = next_query_start_idx # resume from next query starting entry
-                    print(f"new i: {i}")
-                    num_docs_per_this_query = 0 # reset doc counter
-                    continue
 
-                num_docs_per_this_query += 1
-                i += 1
+                    current_query = next_query
+                    i += added_entries  # resume from next query starting entry
+                    num_docs_per_this_query = 0 # reset doc counter
+                else:
+                    num_docs_per_this_query += 1
+                    i += 1
             return
         
         print(f" batch padding to size {training_config.batch_size}...")
