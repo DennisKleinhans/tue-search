@@ -1,6 +1,7 @@
 __pycache__/*
 */*/__pycache__/*
 */*/*/__pycache__/*
+*/*/*/*/__pycache__/*
 venv
 .vscode/settings.json
 
@@ -8,3 +9,4 @@ venv
 data
 code_archive
 notes.md
+restats

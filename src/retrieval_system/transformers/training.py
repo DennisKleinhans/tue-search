@@ -23,7 +23,7 @@ class TrainingModule(ProcessingModule):
         model = Model(self.model_config)
 
         optimizer = optim.Adam(
-            [{"params": model.parameters(), "lr": self.self.train_config.learning_rate}]
+            [{"params": model.parameters(), "lr": self.train_config.learning_rate}]
         )
 
         model.cuda()
@@ -113,7 +113,7 @@ class TrainingModule(ProcessingModule):
         model = SDE(self.model_config)
 
         optimizer = optim.Adam(
-            [{"params": model.parameters(), "lr": self.self.train_config.learning_rate}]
+            [{"params": model.parameters(), "lr": self.train_config.learning_rate}]
         )
 
         model.cuda()

@@ -6,31 +6,16 @@ from time import time
 import json
 
 
-def fast_multi_insert(list, indices, objects):
-    """indices need to be sorted in ascending order!"""
-    result = list
-    tmp = []
-    start = time()
-    for num_indices_already_inserted, idx in enumerate(indices):
-        interval = time() - start
-        if interval > 0: # div by zero ;)
-            print(" Inserting {:>10,d} rows, {:>5.2f} rows/sec".format(num_indices_already_inserted+1,(num_indices_already_inserted+1)/interval), end="\r")
-        tmp.extend(result[:idx+num_indices_already_inserted])
-        tmp.append(objects[num_indices_already_inserted])
-        tmp.extend(result[idx+num_indices_already_inserted:])
-        result = tmp
-        tmp = []
+def fast_multi_insert(list, idx, objects):
+    """insertion of multiple elements in O(n+m)"""
+    result = []
+    result.extend(list[:idx])
+    result.extend(objects)
+    result.extend(list[idx:])
     return result
 
 def preprocess(string):
     return wordpunct_tokenize(string.lower())
-    
-def get_random_document(query_not_to_match, dataset):
-    idx = np.random.randint(0, len(dataset))
-    while query_not_to_match == dataset["query"][idx]:
-        idx = np.random.randint(0, len(dataset))
-    docs = dataset["passages.passage_text"][idx]
-    return preprocess(docs[np.random.randint(0, len(docs))])
 
 def get_vocab_encoding(token, vocab):
     result = vocab["<UNK>"]
@@ -58,8 +43,10 @@ class PreprocessingModule(ProcessingModule):
         self.SDE_QUERIES = []
         self.SDE_DOCUMENTS = []
         self.SDE_TARGETS = []
+        # batch padding (SDE only)
+        self.DOCUMENTS_BY_QUERY_INDEX = []
 
-        disable_caching()
+        disable_caching() # important for keeping the vocab fresh
     
     def __FF_process_batch(self, batch):
         for i in range(len(batch)):
@@ -84,8 +71,10 @@ class PreprocessingModule(ProcessingModule):
             if sum(batch["passages.is_selected"][i]) == 0:
                 continue
 
+            all_tokens = []
             for doc_idx, document in enumerate(batch["passages.passage_text"][i]):
                 tokens = preprocess(document)
+                all_tokens.append(tokens)
 
                 # update containers for generator
                 self.SDE_QUERIES.append(preprocess(query))
@@ -96,13 +85,25 @@ class PreprocessingModule(ProcessingModule):
                 for token in tokens:
                     if token not in self.VOCAB:
                         self.VOCAB[token] = len(self.VOCAB)
+
+            self.DOCUMENTS_BY_QUERY_INDEX.append(all_tokens)
                     
         return {}
     
+
+    def __get_random_document(self, query_idx_not_to_match):
+        q_idx = np.random.randint(0, len(self.DOCUMENTS_BY_QUERY_INDEX))
+        while q_idx == query_idx_not_to_match:
+            q_idx = np.random.randint(0, len(self.DOCUMENTS_BY_QUERY_INDEX))
+        docs = self.DOCUMENTS_BY_QUERY_INDEX[q_idx]
+        d_idx = np.random.randint(0, len(docs))
+        return docs[d_idx]
+    
+
     def __SDE_pad_containers_to_batch_size(self, dataset):
         current_query = self.SDE_QUERIES[0]
         num_docs_per_this_query = 0
-        # start = time()
+        start = time()
         i = 0
         while True:
             try:
@@ -110,45 +111,52 @@ class PreprocessingModule(ProcessingModule):
             except IndexError:
                 break
 
-            # interval = time() - start
-            # if interval > 0: # div by zero ;)
-            #     print(" Reading {:>10,d} rows, {:>5.2f} rows/sec".format(i+1,(i+1)/interval), end="\r")
+            # debug
+            # if i > 35:
+            #     return
+
+            interval = time() - start
+            if (i + 1) % 10 == 0 and interval > 0:
+                print(" Reading {:>10,d} rows, {:>5.2f} rows/sec ".format(i+1,(i+1)/interval), end="\r")
 
             # check for switching query
             if current_query != self.SDE_QUERIES[i]:
                 next_query = self.SDE_QUERIES[i]
+                if self.train_config.batch_size < num_docs_per_this_query:
+                    # reduce batch size instead
+                    while self.train_config.batch_size < num_docs_per_this_query:
+                        rnd_idx = np.random.randint(i-num_docs_per_this_query, i)
+                        if self.SDE_TARGETS[rnd_idx] != 1:
+                            del self.SDE_QUERIES[rnd_idx]
+                            del self.SDE_DOCUMENTS[rnd_idx]
+                            del self.SDE_TARGETS[rnd_idx]
+                            num_docs_per_this_query -= 1
+                else:
+                    # pad to batch size
+                    num_entries_to_add = self.train_config.batch_size-num_docs_per_this_query
 
-                assert self.train_config.batch_size >= num_docs_per_this_query
-                num_entries_to_add = self.train_config.batch_size-num_docs_per_this_query
+                    insertion_index = i
+                    insertion_queries = []
+                    insertion_documents = []
+                    for _ in range(num_entries_to_add):
+                        insertion_queries.append(current_query)
+                        insertion_documents.append(self.__get_random_document(i-1))
+                    insertion_targets = np.zeros(num_entries_to_add)
 
-                insertion_indices = [r+i for r in range(num_entries_to_add)]
-                insertion_queries = [current_query for _ in range(num_entries_to_add)]
-                insertion_documents = [get_random_document(current_query, dataset) for _ in range(num_entries_to_add)]
-                insertion_targets = np.zeros(num_entries_to_add)
+                    self.SDE_QUERIES = fast_multi_insert(self.SDE_QUERIES, insertion_index, insertion_queries)
+                    self.SDE_DOCUMENTS = fast_multi_insert(self.SDE_DOCUMENTS, insertion_index, insertion_documents)
+                    self.SDE_TARGETS = fast_multi_insert(self.SDE_TARGETS, insertion_index, insertion_targets)
 
-                self.SDE_QUERIES = fast_multi_insert(self.SDE_QUERIES, insertion_indices, insertion_queries)
-                self.SDE_DOCUMENTS = fast_multi_insert(self.SDE_DOCUMENTS, insertion_indices, insertion_documents)
-                self.SDE_TARGETS = fast_multi_insert(self.SDE_TARGETS, insertion_indices, insertion_targets)
+                    num_docs_per_this_query += num_entries_to_add
 
-                # added_entries = 0
-                # while num_docs_per_this_query < self.train_config.batch_size:
-                #     interval = time() - start
-                #     if interval > 0: # div by zero ;)
-                #         print(" Adding {:>10,d} rows, {:>5.2f} rows/sec".format(added_entries+1,(added_entries+1)/interval), end="\r")
-
-                #     SDE_QUERIES.insert(i, current_query)
-                #     SDE_DOCUMENTS.insert(i, _get_random_document(current_query))
-                #     SDE_TARGETS.insert(i, 0)
-
-                #     num_docs_per_this_query += 1
-                #     added_entries += 1
-
+                assert self.train_config.batch_size == num_docs_per_this_query
                 current_query = next_query
                 i += num_entries_to_add  # resume from next query starting entry
                 num_docs_per_this_query = 0 # reset doc counter
             else:
                 num_docs_per_this_query += 1
                 i += 1
+        print()
         return
     
     def __gen_FF_preprocessed_dataset(self):
@@ -186,14 +194,15 @@ class PreprocessingModule(ProcessingModule):
             if self.train_config.batch_padding and self.train_config.batch_size >= 10:      
                 print(f" batch padding to size {self.train_config.batch_size}...")
                 self.__SDE_pad_containers_to_batch_size(dataset)
-                print(" done")
-                print("SDE_QUERIES")
-                [print(f"{i} {q}") for i, q in enumerate(self.SDE_QUERIES[:self.train_config.batch_size*2])]
-                print("SDE_DOCUMENTS")
-                [print(f"{i} {q}") for i, q in enumerate(self.SDE_DOCUMENTS[:self.train_config.batch_size*2])]
-                print("SDE_TARGETS") 
-                [print(f"{i} {q}") for i, q in enumerate(self.SDE_TARGETS[:self.train_config.batch_size*2])]
-                exit()
+                print("  - done")
+                # debug
+                # print("SDE_QUERIES")
+                # [print(f"{i} {q}") for i, q in enumerate(self.SDE_QUERIES[:self.train_config.batch_size*2])]
+                # print("SDE_DOCUMENTS")
+                # [print(f"{i} {q}") for i, q in enumerate(self.SDE_DOCUMENTS[:self.train_config.batch_size*2])]
+                # print("SDE_TARGETS")
+                # [print(f"{i} {q}") for i, q in enumerate(self.SDE_TARGETS[:self.train_config.batch_size*2])]
+                # exit()
 
             preprocessed_dataset = Dataset.from_generator(GENERATOR[self.pipeline_config.model])
 

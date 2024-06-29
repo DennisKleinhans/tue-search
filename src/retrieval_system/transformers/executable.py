@@ -39,10 +39,7 @@ if __name__ == '__main__':
         model_config,
         pipeline_config
     )
-    if pipeline_config.model == "FF":
-        training_args = IEM.execute(preprocessed_dataset, vocab)
-    elif pipeline_config.model == "SDE":
-        training_args = IEM.execute(preprocessed_dataset, vocab)
+    training_args = IEM.execute(preprocessed_dataset, vocab)
 
 
     # training
