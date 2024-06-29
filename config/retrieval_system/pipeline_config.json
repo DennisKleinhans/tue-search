@@ -1,0 +1,5 @@
+{
+    "model": "FF",
+    "dataset_save_path": "data/retrieval_system/",
+    "load_dataset_from_disk": false
+}
