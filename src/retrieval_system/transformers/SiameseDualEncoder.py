@@ -248,34 +248,14 @@ class SDE(torch.nn.Module):
 
     def _ContrastiveLoss(self, queries, documents, targets):
         # terminology based on https://arxiv.org/abs/2204.07120
-        # apply_() only works on the cpu :,(
-        queries = queries.to("cpu").detach()
-        documents = documents.to("cpu").detach()
-        targets = targets.to("cpu").detach()
-
-        def debug(a, b):
-            print(a.shape)
-            print(b.shape)
-            return (1-nn.CosineSimilarity()(a, b))
-
-        cos_dist = lambda a, b: debug(a, b)
-        ten = lambda a: torch.as_tensor(np.array(a)) # inplace list -> tensor conversion
 
         tau = self.config.softmax_temperature
         ai = documents[targets.bool()] # ground truth
-        print(f"targets = {targets}")
+        aj = documents[~targets.bool()] # negative examples
+        query = queries[0] # queries per batch are all equal (batch padding)
 
-        # TODO process logits in fixed batches based on the dataset to ensure 1x ground truth doc (ai)
-
-        print(cos_dist(ten(queries[0]), ai))
-        print(cos_dist(ten(queries[0]), ten(documents[0])))
-
-        sum_elements = lambda qi: documents.apply_(
-            lambda aj: cos_dist(qi, ten(aj))/tau
-        )
-        per_query_loss = queries.apply_(
-            lambda qi: np.exp(cos_dist(ten(qi), ai)/tau)/torch.sum(sum_elements(ten(qi)))
-        )
+        _sum = torch.sum(torch.exp((1-nn.CosineSimilarity()(query, aj))/tau))
+        per_query_loss = torch.exp((1-nn.CosineSimilarity()(query, ai))/tau)/_sum
         return torch.mean(per_query_loss)
 
     def init_weights(self, module):
@@ -299,7 +279,7 @@ class SDE(torch.nn.Module):
         doc_rep = self.shared_fastformer_encoder(doc_embds, doc_mask)
 
         # similarity measuring
-        joint_rep = torch.sum(qry_rep * doc_rep, dim=-1) # elem wise dot
-        score = self.dense_linear(joint_rep) # ?!
+        joint_rep = torch.sum(qry_rep * doc_rep, dim=0) # elem wise dot
+        score = torch.flatten(self.dense_linear(doc_rep)) # ?!
         loss = self.criterion(qry_rep, doc_rep, targets) # ?!
         return loss, score

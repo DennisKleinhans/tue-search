@@ -39,10 +39,9 @@ if __name__ == '__main__':
         model_config,
         pipeline_config
     )
-    training_args = IEM.execute(preprocessed_dataset, vocab)
+    training_args = IEM.execute(preprocessed_dataset, vocab) # FF: tuple(t, l), SDE: triple(q, d, l)
 
-
-    # training
+    # training (+ evaluation)
     TM = TrainingModule(
         training_config,
         model_config,

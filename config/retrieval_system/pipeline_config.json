@@ -1,5 +1,5 @@
 {
     "model": "SDE",
     "dataset_save_path": "data/retrieval_system/",
-    "load_dataset_from_disk": false
+    "load_dataset_from_disk": true
 }

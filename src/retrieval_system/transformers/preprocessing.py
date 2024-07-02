@@ -79,7 +79,7 @@ class PreprocessingModule(ProcessingModule):
                 # update containers for generator
                 self.SDE_QUERIES.append(preprocess(query))
                 self.SDE_DOCUMENTS.append(tokens)
-                self.SDE_TARGETS.append(batch["passages.is_selected"][i][doc_idx])
+                self.SDE_TARGETS.append(float(batch["passages.is_selected"][i][doc_idx]))
                     
                 # update vocab
                 for token in tokens:
@@ -100,7 +100,7 @@ class PreprocessingModule(ProcessingModule):
         return docs[d_idx]
     
 
-    def __SDE_pad_containers_to_batch_size(self, dataset):
+    def __SDE_pad_containers_to_batch_size(self):
         current_query = self.SDE_QUERIES[0]
         num_docs_per_this_query = 0
         start = time()
@@ -113,7 +113,9 @@ class PreprocessingModule(ProcessingModule):
 
             # debug
             # if i > 35:
-            #     return
+            #     for l in [self.SDE_QUERIES, self.SDE_DOCUMENTS, self.SDE_TARGETS]:
+            #         print(l[:35])
+            #     exit()
 
             interval = time() - start
             if (i + 1) % 10 == 0 and interval > 0:
@@ -122,14 +124,16 @@ class PreprocessingModule(ProcessingModule):
             # check for switching query
             if current_query != self.SDE_QUERIES[i]:
                 next_query = self.SDE_QUERIES[i]
+                
                 if self.train_config.batch_size < num_docs_per_this_query:
-                    # reduce batch size instead
+                    # reduce to batch size
                     while self.train_config.batch_size < num_docs_per_this_query:
                         rnd_idx = np.random.randint(i-num_docs_per_this_query, i)
                         if self.SDE_TARGETS[rnd_idx] != 1:
                             del self.SDE_QUERIES[rnd_idx]
                             del self.SDE_DOCUMENTS[rnd_idx]
                             del self.SDE_TARGETS[rnd_idx]
+                            i -= 1
                             num_docs_per_this_query -= 1
                 else:
                     # pad to batch size
@@ -148,10 +152,21 @@ class PreprocessingModule(ProcessingModule):
                     self.SDE_TARGETS = fast_multi_insert(self.SDE_TARGETS, insertion_index, insertion_targets)
 
                     num_docs_per_this_query += num_entries_to_add
+                    i += num_entries_to_add  # resume from next query starting entry
 
-                assert self.train_config.batch_size == num_docs_per_this_query
+                # ensure only one ground truth per batch
+                bt_lower_bound = i-num_docs_per_this_query
+                batch_targets = self.SDE_TARGETS[bt_lower_bound:i]
+                gt_indices = [idx+bt_lower_bound for idx, e in enumerate(batch_targets) if e == 1]
+                if len(gt_indices) > 1:
+                    for idx in gt_indices[1:]: # keep only the first ground truth
+                        self.SDE_TARGETS[idx] = 0.0
+
+                assert self.train_config.batch_size == num_docs_per_this_query # correct batch size
+                assert np.sum(self.SDE_TARGETS[bt_lower_bound:i]) == 1.0 # one ground truth per batch
+                assert next_query == self.SDE_QUERIES[i] # index is still correct
+
                 current_query = next_query
-                i += num_entries_to_add  # resume from next query starting entry
                 num_docs_per_this_query = 0 # reset doc counter
             else:
                 num_docs_per_this_query += 1
@@ -191,18 +206,11 @@ class PreprocessingModule(ProcessingModule):
                 BATCH_PROCESSING[self.pipeline_config.model],
                 batched=True
             )
-            if self.train_config.batch_padding and self.train_config.batch_size >= 10:      
+            if self.train_config.batch_padding:      
                 print(f" batch padding to size {self.train_config.batch_size}...")
-                self.__SDE_pad_containers_to_batch_size(dataset)
+                self.__SDE_pad_containers_to_batch_size()
+                print(f"padded dataset size: {len(self.SDE_QUERIES)}")
                 print("  - done")
-                # debug
-                # print("SDE_QUERIES")
-                # [print(f"{i} {q}") for i, q in enumerate(self.SDE_QUERIES[:self.train_config.batch_size*2])]
-                # print("SDE_DOCUMENTS")
-                # [print(f"{i} {q}") for i, q in enumerate(self.SDE_DOCUMENTS[:self.train_config.batch_size*2])]
-                # print("SDE_TARGETS")
-                # [print(f"{i} {q}") for i, q in enumerate(self.SDE_TARGETS[:self.train_config.batch_size*2])]
-                # exit()
 
             preprocessed_dataset = Dataset.from_generator(GENERATOR[self.pipeline_config.model])
 

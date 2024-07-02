@@ -8,15 +8,30 @@ from scipy.stats import kendalltau, pearsonr
 from sklearn.metrics import ndcg_score
 
 
+def reciprocal_rank(true, hat):
+    sorted_ranks = sorted(enumerate(hat), key=lambda t: t[1])
+    ground_truth_position = -1
+    for i, x in sorted_ranks:
+        if i == list(true).index(1):
+            ground_truth_position = i+1
+            break
+    if ground_truth_position != -1:
+        return 1/ground_truth_position
+    else:
+        return 0
+
+
 class TrainingModule(ProcessingModule):
     def __init__(self, train_config, model_config, pipeline_config) -> None:
         super().__init__(train_config, model_config)
         self.pipeline_config = pipeline_config
 
-        self.SELECTED_METRIC = "pcc"
+        # FF only
+        self.SELECTED_METRIC = "mrr"
         self.METRICS = {
             "pcc": (lambda true, hat: pearsonr(true, hat).statistic, "Pearson correlation coefficient"),
             "ndcg10": (lambda true, hat: ndcg_score(true, hat, k=10), "Normalized Discounted Cumulative Gain @ 10"),
+            "mrr": (lambda true, hat: reciprocal_rank(true, hat), "Reciprocal Rank")
         }
 
     def __FF_trainer(self, text, label, train_idx, test_idx):
@@ -145,14 +160,11 @@ class TrainingModule(ProcessingModule):
                 bz_loss, y_hat = model(qry_logids, doc_logids, targets)
 
                 loss += bz_loss.data.float()
-
-                this_score = self.METRICS[self.SELECTED_METRIC][0](
+                
+                this_score = reciprocal_rank(
                     targets.to("cpu").detach().numpy().tolist(),
                     y_hat.to("cpu").detach().numpy().tolist()
                 )
-                # scipy metrics sometimes return nan
-                if np.isnan(this_score):
-                    this_score = 0
                 metric_score += this_score
 
                 unified_loss = bz_loss
@@ -162,19 +174,20 @@ class TrainingModule(ProcessingModule):
 
                 if num_batch % 100 == 0:
                     print(
-                        "[TRAIN SET] Epoch: {}, Samples: 0-{}, train_loss: {:.5f}, {}: {:.5f}".format(
+                        "[TRAIN SET] Epoch: {}, Samples: 0-{}, train_loss: {:.5f}, mrr: {:.5f}".format(
                             i+1,
                             self.train_config.batch_size + (num_batch * self.train_config.batch_size), 
                             loss.data / (num_batch + 1), # mean over all batches processed so far
-                            self.SELECTED_METRIC,
                             metric_score / (num_batch + 1) # mean over all batches processed so far
                         )
                     )
 
             # evaluation
             model.eval()
-            y_hat_all = []
+            all_y_hat = []
+            per_batch_metric = []
             loss2 = 0.0
+            
             for num_batch in range(len(test_idx) // self.train_config.batch_size + 1):
 
                 qry_logids = query[test_idx][
@@ -198,13 +211,13 @@ class TrainingModule(ProcessingModule):
                 bz_loss2, y_hat2 = model(qry_logids, doc_logids, targets)
 
                 loss2 += bz_loss2.data.float()
-                y_hat_all += y_hat2.to("cpu").detach().numpy().tolist()
+                y_hat2 = y_hat2.to("cpu").detach().numpy().tolist()
+                all_y_hat += y_hat2
+                per_batch_metric.append(reciprocal_rank(targets, y_hat2))
 
-            y_true = target[test_idx]
-            print("[TEST SET] {} after epoch {}: {:.5f} (loss: {:.5})\n".format(
-                self.METRICS[self.SELECTED_METRIC][1],
+            print("[TEST SET] Mean Reciprocal Rank after epoch {}: {:.5f} (loss: {:.5})\n".format(
                 i+1,
-                self.METRICS[self.SELECTED_METRIC][0](y_true, y_hat_all),
+                np.mean(per_batch_metric),
                 loss2
             ))
 
