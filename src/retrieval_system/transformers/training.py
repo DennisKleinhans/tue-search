@@ -9,17 +9,17 @@ from sklearn.metrics import ndcg_score
 
 
 def reciprocal_rank(true, hat):
-    sorted_ranks = sorted(enumerate(hat), key=lambda t: t[1])
-    ground_truth_position = -1
+    sorted_ranks = sorted(enumerate(hat), key=lambda t: t[1], reverse=True)
+    ground_truth_rank = -1
     for i, x in sorted_ranks:
         try:
             if i == list(true).index(1):
-                ground_truth_position = i+1
+                ground_truth_rank = i+1
                 break
         except ValueError: # '1' not in 'true'
             break
-    if ground_truth_position != -1:
-        return 1/ground_truth_position
+    if ground_truth_rank != -1:
+        return 1/ground_truth_rank
     else:
         return 0
 
