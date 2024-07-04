@@ -1,5 +1,8 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/
+*/*/*/*/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -183,3 +186,11 @@ cython_debug/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# additional patterns from main
+.vscode/settings.json
+
+# custom folders/files
+data
+code_archive
+restats
