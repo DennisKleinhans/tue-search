@@ -3,8 +3,8 @@ from copy import copy
 from dataclasses import dataclass
 
 import bs4
-from src.crawler.configs import CRAWLER_IGNORED_CLASSES
-from src.crawler.configs import CRAWLER_IGNORED_ELEMENTS
+from configs import CRAWLER_IGNORED_CLASSES
+from configs import CRAWLER_IGNORED_ELEMENTS
 
 
 MINTLIFY_UNWANTED = ["sticky", "hidden"]
