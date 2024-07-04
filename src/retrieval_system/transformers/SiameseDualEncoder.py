@@ -233,11 +233,10 @@ class SDE(torch.nn.Module):
         )
         self.shared_fastformer_encoder = FastformerEncoder(config)
 
+        self.relevance_measure = nn.CosineSimilarity()
         criteria = {
-            # "mse": nn.MSELoss(), # not useful for ranking, assumes normal dist!!!
-            "mrl": nn.MarginRankingLoss(margin=1.0),
-            "cos": nn.CosineEmbeddingLoss(margin=1.0),
-            "contrastive": self._ContrastiveLoss
+            "contrastive": self._ContrastiveLoss,
+            "dssm": self._DSSM_loss
         }
         try:
             self.criterion = criteria[self.config.loss_fn]
@@ -247,6 +246,7 @@ class SDE(torch.nn.Module):
         self.apply(self.init_weights)
 
     def _ContrastiveLoss(self, queries, documents, targets):
+        # only works with batch padding
         # terminology based on https://arxiv.org/abs/2204.07120
 
         tau = self.config.softmax_temperature
@@ -257,6 +257,14 @@ class SDE(torch.nn.Module):
         _sum = torch.sum(torch.exp((1-nn.CosineSimilarity()(query, aj))/tau))
         per_query_loss = torch.exp((1-nn.CosineSimilarity()(query, ai))/tau)/_sum
         return torch.mean(per_query_loss)
+    
+    def _DSSM_loss(self, queries, documents, targets):
+        # input: batch_size, embed_size
+        tau = self.config.loss_softmax_smoothing
+
+        posterior_positive = nn.Softmax(dim=0)(self.relevance_measure(queries, documents)*tau)[targets.bool()]
+
+        return -torch.log(torch.prod(posterior_positive, 0))
 
     def init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
@@ -279,7 +287,9 @@ class SDE(torch.nn.Module):
         doc_rep = self.shared_fastformer_encoder(doc_embds, doc_mask)
 
         # similarity measuring
-        joint_rep = torch.sum(qry_rep * doc_rep, dim=0) # elem wise dot
-        score = torch.flatten(self.dense_linear(doc_rep)) # ?!
-        loss = self.criterion(qry_rep, doc_rep, targets) # ?!
-        return loss, score
+        # relevance_scores = torch.flatten(self.dense_linear(torch.sum(qry_rep * doc_rep, dim=0)))
+        relevance_scores = self.relevance_measure(qry_rep, doc_rep)
+        # probs = nn.Softmax(dim=0)(relevance_scores*self.config.loss_softmax_smoothing)
+        # loss = nn.CrossEntropyLoss()(probs, targets)
+        loss = self.criterion(qry_rep, doc_rep, targets)
+        return loss, relevance_scores

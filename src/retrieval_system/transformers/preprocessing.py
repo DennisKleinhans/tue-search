@@ -195,8 +195,12 @@ class PreprocessingModule(ProcessingModule):
             "SDE": self.__gen_SDE_preprocessed_dataset
         }
 
+        dataset_savename = f"{self.pipeline_config.dataset_save_path}{self.pipeline_config.model}-preprocessed_dataset_bs{self.train_config.batch_size}"
+        if self.train_config.batch_padding:
+            dataset_savename += "_padded"
+
         if self.pipeline_config.load_dataset_from_disk:
-            preprocessed_dataset = load_from_disk(self.pipeline_config.dataset_save_path+f"{self.pipeline_config.model}-preprocessed_dataset_bs{self.train_config.batch_size}")
+            preprocessed_dataset = load_from_disk(dataset_savename)
             with open(self.pipeline_config.dataset_save_path+f"{self.pipeline_config.model}-vocab.json", "r", encoding="utf-8") as fs:
                 self.VOCAB = json.load(fs)
                 fs.close()
@@ -214,7 +218,7 @@ class PreprocessingModule(ProcessingModule):
 
             preprocessed_dataset = Dataset.from_generator(GENERATOR[self.pipeline_config.model])
 
-            preprocessed_dataset.save_to_disk(self.pipeline_config.dataset_save_path+f"{self.pipeline_config.model}-preprocessed_dataset_bs{self.train_config.batch_size}")
+            preprocessed_dataset.save_to_disk(dataset_savename)
             with open(self.pipeline_config.dataset_save_path+f"{self.pipeline_config.model}-vocab.json", "w", encoding="utf-8") as fs:
                 json.dump(self.VOCAB, fs, indent=4)
                 fs.close()

@@ -179,7 +179,7 @@ class TrainingModule(ProcessingModule):
                     print(
                         "[TRAIN SET] Epoch: {}, Samples: 0-{}, train_loss: {:.5f}, mrr: {:.5f}".format(
                             i+1,
-                            self.train_config.batch_size + (num_batch * self.train_config.batch_size), 
+                            self.train_config.batch_size + (num_batch * self.train_config.batch_size),
                             loss.data / (num_batch + 1), # mean over all batches processed so far
                             metric_score / (num_batch + 1) # mean over all batches processed so far
                         )

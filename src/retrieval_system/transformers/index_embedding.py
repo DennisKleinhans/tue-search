@@ -44,23 +44,21 @@ class IndexEmbeddingModule(ProcessingModule):
             "SDE": lambda batch: self.__SDE_embed_batch(batch, vocab)
         }
 
+        dataset_savename = f"{self.pipeline_config.dataset_save_path}{self.pipeline_config.model}-embedded_dataset_bs{self.train_config.batch_size}"
+        if self.train_config.batch_padding:
+            dataset_savename += "_padded"
+
         if self.pipeline_config.load_dataset_from_disk:
-            embedded_dataset = load_from_disk(self.pipeline_config.dataset_save_path+f"{self.pipeline_config.model}-embedded_dataset_bs{self.train_config.batch_size}")
+            embedded_dataset = load_from_disk(dataset_savename)
             print(" - loaded from disk")
         else:
             embedded_dataset = preprocessed_dataset.map(
                 EMBEDDING[self.pipeline_config.model], 
                 batched=True
             )
-            embedded_dataset.save_to_disk(self.pipeline_config.dataset_save_path+f"{self.pipeline_config.model}-embedded_dataset_bs{self.train_config.batch_size}")
+            embedded_dataset.save_to_disk(dataset_savename)
             print(" - done")
-
-        # size = 0
-        # for row in embedded_dataset:
-        #     if size < len(row["text"]):
-        #         size = len(row["text"])
-        # print(size)
-
+            
 
         print("converting dataset to numpy int32...")
         if self.pipeline_config.model == "FF":
