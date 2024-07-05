@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import axios from "axios";
 import SearchResults from "./components/SearchResults";
 import { getExampleResults } from "./util/utils";
 import StartPage from "./components/StartPage";
@@ -17,9 +18,12 @@ const App = () => {
 
     try {
       console.log("Searching for:", searchQuery);
-      // simulate API request
-      const data = getExampleResults();
-      setResults(data);
+
+      const response = await axios.post("http://localhost:5000/search", {
+        query: searchQuery,
+      });
+
+      setResults(response.data.results);
     } catch (error) {
       console.error("Error fetching search results:", error);
     }
