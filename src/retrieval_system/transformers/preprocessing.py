@@ -4,6 +4,7 @@ from datasets import Dataset, disable_caching, load_from_disk
 import numpy as np
 from time import time
 import json
+import os
 
 
 def fast_multi_insert(list, idx, objects):
@@ -25,11 +26,20 @@ def get_vocab_encoding(token, vocab):
         pass
     return result
 
+def revert_vocab_encoding(encoding_idx, vocab):
+    result = "<UNK>"
+    try:
+        keys = list(vocab.keys())
+        result = keys[encoding_idx]
+    except IndexError:
+        pass
+    return result
 
 class PreprocessingModule(ProcessingModule):
     def __init__(self, train_config, model_config, pipeline_config) -> None:
         super().__init__(train_config, model_config)
         self.pipeline_config = pipeline_config
+        self.unk_token = "<UNK>" 
 
         self.VOCAB = {
             "<PAD>": 0,
@@ -65,24 +75,30 @@ class PreprocessingModule(ProcessingModule):
 
     def __SDE_process_batch(self, batch):
         for i in range(len(batch)):
-            query = batch["query"][i]
-
             # skip queries that have no ground truth documents
             if sum(batch["passages.is_selected"][i]) == 0:
                 continue
 
+            query = batch["query"][i]
+            pp_query = preprocess(query)
+            pp_query = pp_query[:self.train_config.tokenizer_max_length] # truncation
+            pp_query = pp_query + [self.unk_token]*(self.train_config.tokenizer_max_length-len(pp_query)) # padding
+
             all_tokens = []
             for doc_idx, document in enumerate(batch["passages.passage_text"][i]):
-                tokens = preprocess(document)
-                all_tokens.append(tokens)
+                pp_document = preprocess(document)
+                pp_document = pp_document[:self.train_config.tokenizer_max_length] # truncation
+                pp_document = pp_document + [self.unk_token]*(self.train_config.tokenizer_max_length-len(pp_document)) # padding
+
+                all_tokens.append(pp_document)
 
                 # update containers for generator
-                self.SDE_QUERIES.append(preprocess(query))
-                self.SDE_DOCUMENTS.append(tokens)
+                self.SDE_QUERIES.append(pp_query)
+                self.SDE_DOCUMENTS.append(pp_document)
                 self.SDE_TARGETS.append(float(batch["passages.is_selected"][i][doc_idx]))
                     
                 # update vocab
-                for token in tokens:
+                for token in pp_document:
                     if token not in self.VOCAB:
                         self.VOCAB[token] = len(self.VOCAB)
 
@@ -188,14 +204,16 @@ class PreprocessingModule(ProcessingModule):
         BATCH_PROCESSING = {
             "FF": self.__FF_process_batch,
             "SDE": self.__SDE_process_batch,
+            "LR": self.__SDE_process_batch,
         }
 
         GENERATOR = {
             "FF": self.__gen_FF_preprocessed_dataset,
-            "SDE": self.__gen_SDE_preprocessed_dataset
+            "SDE": self.__gen_SDE_preprocessed_dataset,
+            "LR": self.__gen_SDE_preprocessed_dataset,
         }
 
-        dataset_savename = f"{self.pipeline_config.dataset_save_path}{self.pipeline_config.model}-preprocessed_dataset_bs{self.train_config.batch_size}"
+        dataset_savename = f"{self.pipeline_config.dataset_save_path}{self.pipeline_config.model}-preprocessed_dataset_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
         if self.train_config.batch_padding:
             dataset_savename += "_padded"
 

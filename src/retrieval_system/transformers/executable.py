@@ -1,8 +1,24 @@
 from datasets import load_dataset, disable_caching
 from transformers import BertConfig
 from preprocessing import PreprocessingModule
-from index_embedding import IndexEmbeddingModule
-from training import TrainingModule
+from embedding import EmbeddingModule
+from training import TrainingModule, TrainingModuleV2
+import numpy as np
+
+
+def create_glove_embedding_map():
+    if pipeline_config.embedding_type == "glove":
+        embedding_map = {}
+        with open(pipeline_config.dataset_save_path+pipeline_config.glove_file, encoding='utf-8') as f:
+            for line in f:
+                values = line.split()
+                word = values[0]
+                try:
+                    coefs = list(np.asarray(values[1:], dtype=float))
+                except ValueError:
+                    continue
+                embedding_map[word] = coefs
+    return embedding_map
 
 
 if __name__ == '__main__':
@@ -29,25 +45,37 @@ if __name__ == '__main__':
     )
     preprocessed_dataset, vocab = PM.execute(msmarco)
 
-    # update model params
+    # update params
     model_config.num_embeddings = len(vocab)                                                                    
     model_config.vocab_size = len(vocab)
 
-    # index embedding + padding
-    IEM = IndexEmbeddingModule(
-        training_config,
-        model_config,
-        pipeline_config
-    )
-    training_args = IEM.execute(preprocessed_dataset, vocab) # FF: tuple(t, l), SDE: triple(q, d, l)
+    # # index embedding + padding
+    # EM = EmbeddingModule(
+    #     training_config,
+    #     model_config,
+    #     pipeline_config
+    # )
+    #  # FF: tuple(t, l), SDE: triple(q, d, l), LR: embedded_dataset
+    # training_args = EM.execute(preprocessed_dataset, vocab)
 
     # training (+ evaluation)
-    TM = TrainingModule(
+    # TM = TrainingModule(
+    #     training_config,
+    #     model_config,
+    #     pipeline_config
+    # )
+    # TM.execute(training_args)
+
+    print("loading embedding map...")
+    embed_map = create_glove_embedding_map()
+    print(" - done")
+
+    TM = TrainingModuleV2(
         training_config,
         model_config,
         pipeline_config
     )
-    TM.execute(training_args)
+    TM.execute(preprocessed_dataset, embed_map)
 
 
     # print("retrieving for a random query from all documents...")
