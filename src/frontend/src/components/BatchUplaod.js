@@ -9,9 +9,13 @@ const BatchUpload = ({ onBatchSearch }) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result;
-        const queries = text
-          .split("\n")
-          .filter((query) => query.trim() !== "" && query.trim() !== " ");
+        const lines = text.split("\n").map((line) => line.trim());
+        const queries = lines.map((line) => {
+          const parts = line.split("\t");
+          const queryNumber = parts[0].trim();
+          const query = parts[1].trim();
+          return { queryNumber, query };
+        });
         onBatchSearch(queries);
       };
       reader.readAsText(file);

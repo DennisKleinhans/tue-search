@@ -22,7 +22,7 @@ const App = () => {
       const response = await axios.post("http://localhost:5000/search", {
         query: searchQuery,
       });
-
+      console.log("Search results:", response.data.results);
       setResults(response.data.results);
     } catch (error) {
       console.error("Error fetching search results:", error);
@@ -30,19 +30,43 @@ const App = () => {
   };
 
   const handleBatchSearch = async (searchQueries) => {
-    // simulate batch search results
-    const results = searchQueries.map((query) => `${query}: result`);
+    try {
+      // pack the actual queries and the corresponding query numbers
+      const queries = searchQueries.map((query, queryNumber) => ({
+        query: query.query,
+        queryNumber: queryNumber + 1,
+      }));
 
-    // automatically download the batch results
-    const element = document.createElement("a");
-    const file = new Blob([results.join("\n")], { type: "text/plain" });
-    element.href = URL.createObjectURL(file);
-    element.download = "batch_results.txt";
-    document.body.appendChild(element);
-    element.click();
+      const response = await axios.post("http://localhost:5000/batch_search", {
+        queries: queries,
+      });
 
-    // clean up the DOM
-    document.body.removeChild(element);
+      if (response.data && response.data.batch_results) {
+        // automatically download the batch results
+        const batchResults = response.data.batch_results;
+        const element = document.createElement("a");
+
+        let fileContent = "";
+        batchResults.forEach((result) => {
+          result.results.forEach((item) => {
+            fileContent += `${result.queryNumber}\t${JSON.stringify(item)}\n`;
+          });
+        });
+
+        const file = new Blob([fileContent], { type: "text/plain" });
+        element.href = URL.createObjectURL(file);
+        element.download = "batch_results.txt";
+        document.body.appendChild(element);
+        element.click();
+
+        // clean up the DOM
+        document.body.removeChild(element);
+      } else {
+        console.error("No batch results found in response:", response);
+      }
+    } catch (error) {
+      console.error("Error fetching batch search results:", error);
+    }
   };
 
   return (
