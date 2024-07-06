@@ -1,8 +1,7 @@
 from datasets import load_dataset, disable_caching
 from transformers import BertConfig
 from preprocessing import PreprocessingModule
-from embedding import EmbeddingModule
-from training import TrainingModule, TrainingModuleV2
+from training import TrainingModuleV2
 import numpy as np
 
 

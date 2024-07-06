@@ -30,6 +30,42 @@ def reciprocal_rank(true, hat):
         return 1/ground_truth_rank
     else:
         return 0
+    
+
+def get_glove_embed(tokens, embed_map):
+    embed_size = 0
+    for key in embed_map:
+        embed_size = len(embed_map[key])
+        break
+    embeds = []
+    for t in tokens:
+        try:
+            embeds.append(embed_map[t])
+        except KeyError:
+            embeds.append([0.0]*embed_size)
+    # return np.mean(embeds, axis=0) # ?!
+    return embeds
+
+
+def get_features(qry_tokens, doc_tokens, embed_map, vectorizer):
+    query = " ".join(qry_tokens)
+    qry_embeds = get_glove_embed(qry_tokens, embed_map)
+    qry_embeds_1d = np.mean(qry_embeds, axis=0)
+
+    document = " ".join(doc_tokens)
+    doc_embeds = get_glove_embed(doc_tokens, embed_map)
+    doc_embeds_1d = np.mean(doc_embeds, axis=0)
+
+    tfidf = vectorizer.fit_transform([query, document])
+
+    # features
+    tfidf_cos = cosine_similarity(tfidf[0], tfidf[1])
+    embed_cos = cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))
+
+    return [
+        tfidf_cos,
+        embed_cos
+    ]
 
 
 class TrainingModule(ProcessingModule):
@@ -285,44 +321,11 @@ class TrainingModuleV2(ProcessingModule):
         self.embedding_map = None
 
 
-    def __get_glove_embed(self, tokens):
-        embed_size = 0
-        for key in self.embedding_map:
-            embed_size = len(self.embedding_map[key])
-            break
-        embeds = []
-        for t in tokens:
-            try:
-                embeds.append(self.embedding_map[t])
-            except KeyError:
-                embeds.append([0.0]*embed_size)
-        # return np.mean(embeds, axis=0) # ?!
-        return embeds
-
-
-    def __get_features(self, qry_tokens, doc_tokens):
-        query = " ".join(qry_tokens)
-        qry_embeds = self.__get_glove_embed(qry_tokens)
-        qry_embeds_1d = np.mean(qry_embeds, axis=0)
-
-        document = " ".join(doc_tokens)
-        doc_embeds = self.__get_glove_embed(doc_tokens)
-        doc_embeds_1d = np.mean(doc_embeds, axis=0)
-
-        tfidf = self.vectorizer.fit_transform([query, document])
-
-        # features
-        tfidf_cos = cosine_similarity(tfidf[0], tfidf[1])
-        embed_cos = cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))
-
-        return [
-            tfidf_cos,
-            embed_cos
-        ]
-
-
     def execute(self, preprocessed_dataset, embed_map):
         self.embedding_map = embed_map
+
+        FEATURES = []
+        TARGETS = []
         
         print("mapping features...")
         dataset_savename = f"{self.pipeline_config.dataset_save_path}{self.pipeline_config.model}-mapped_features_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
@@ -350,19 +353,12 @@ class TrainingModuleV2(ProcessingModule):
             mapped_features.save_to_disk(dataset_savename)
             print(" - done")
 
-        # start = time()
-        # train_features = []
-        # for i in train_idx:
-        #     interval = time() - start
-        #     if (i + 1) % 10 == 0 and interval > 0:
-        #         print(" Reading {:>10,d} rows, {:>5.2f} rows/sec ".format(i+1,(i+1)/interval), end="\r")
-
-        #     train_features.append(self.__get_features(preprocessed_dataset["query"][i], preprocessed_dataset["document"][i]))
 
         print(len(preprocessed_dataset))
         print(len(mapped_features))
         features = mapped_features["features"]
         targets = mapped_features["targets"]
+        # print(len(FEATURES))
 
         
         print("creating split indices...")
@@ -398,8 +394,7 @@ class TrainingModuleV2(ProcessingModule):
         eval_targets = np.asarray([targets[i] for i in test_idx], dtype=int)
         eval_features = np.asarray([features[i] for i in test_idx], dtype=float).reshape(len(eval_targets), 2)
 
-        y_hat = [self.model.predict_proba(f.reshape(1, -1))[0] for f in eval_features]
-        print(self.model.predict_proba(eval_features[0].reshape(1, -1)))
+        y_hat = [np.argmax(scores) for scores in self.model.predict_proba(eval_features)]
         print(y_hat)
 
         wrong_unrelated = []
