@@ -5,18 +5,13 @@ from time import time
 from datasets import load_from_disk, Dataset
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
-from preprocessing import preprocess, revert_vocab_encoding
-import torch
-from Fastformer import Model
-from SiameseDualEncoder import SDE
-import os
-import torch.optim as optim
 import numpy as np
-from scipy.stats import kendalltau, pearsonr
 from sklearn.metrics import ndcg_score
+from nltk.metrics import ConfusionMatrix
 
 
 def reciprocal_rank(true, hat):
+    """"computes the rr for one batch (aka true should have only one 1)"""
     sorted_ranks = sorted(enumerate(hat), key=lambda t: t[1], reverse=True)
     ground_truth_rank = -1
     for i, x in sorted_ranks:
@@ -47,7 +42,7 @@ def get_glove_embed(tokens, embed_map):
     return embeds
 
 
-def get_features(qry_tokens, doc_tokens, embed_map, vectorizer):
+def get_features(qry_tokens, doc_tokens, embed_map, vectorizer, feature_set):
     query = " ".join(qry_tokens)
     qry_embeds = get_glove_embed(qry_tokens, embed_map)
     qry_embeds_1d = np.mean(qry_embeds, axis=0)
@@ -62,22 +57,32 @@ def get_features(qry_tokens, doc_tokens, embed_map, vectorizer):
     tfidf_cos = cosine_similarity(tfidf[0], tfidf[1])
     embed_cos = cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))
 
-    return [
-        tfidf_cos,
-        embed_cos
-    ]
+    if feature_set == 1:
+        return [
+            tfidf_cos,
+            embed_cos
+        ]
+    elif feature_set == 2:
+        result = []
+        result.append(tfidf_cos)
+        result.append(embed_cos)
+        for token in embed_map:
+            result.append(qry_tokens.count(token)/len(embed_map))
+        return result
+    else:
+        raise ValueError(f"feature set {feature_set} is not implemented.")
 
 
-def process_batch(batch, embed_map, vectorizer, batched=True):
+def process_batch(batch, embed_map, vectorizer, feature_set, batched=True):
     if batched:
         f = []
         t = []
         for i in range(len(batch)):
-            f.append(get_features(batch["query"][i], batch["document"][i], embed_map, vectorizer))
+            f.append(get_features(batch["query"][i], batch["document"][i], embed_map, vectorizer, feature_set))
             t.append(batch["target"][i])
         return {"features": f, "targets": t}
     else:
-        return {"features": get_features(batch["query"], batch["document"], embed_map, vectorizer), "targets": batch["target"]}
+        return {"features": get_features(batch["query"], batch["document"], embed_map, vectorizer, feature_set), "targets": batch["target"]}
 
 
 class TrainingModuleV2(ProcessingModule):
@@ -101,14 +106,14 @@ class TrainingModuleV2(ProcessingModule):
             dataset_savename += "-".join(self.pipeline_config.glove_file.lstrip("glove").rstrip(".txt").split("."))
         if self.train_config.batch_padding:
             dataset_savename += "_padded"
-        dataset_savename += f"_tml{self.train_config.tokenizer_max_length}"
+        dataset_savename += f"_tml{self.train_config.tokenizer_max_length}_fs{self.train_config.feature_set}"
 
         if self.pipeline_config.load_dataset_from_disk:
             mapped_features = load_from_disk(dataset_savename)
             print(" - loaded from disk")
         else:
             mapped_features = preprocessed_dataset.map(
-                lambda batch: process_batch(batch, self.embedding_map, self.vectorizer, batched=False),
+                lambda batch: process_batch(batch, self.embedding_map, self.vectorizer, self.train_config.feature_set, batched=False),
                 batched=False,
                 remove_columns=preprocessed_dataset.column_names
             )
@@ -116,11 +121,8 @@ class TrainingModuleV2(ProcessingModule):
             print(" - done")
 
 
-        # print(len(preprocessed_dataset))
-        # print(len(mapped_features))
         features = mapped_features["features"]
         targets = mapped_features["targets"]
-        # print(len(FEATURES))
 
         
         print("creating split indices...")
@@ -143,16 +145,6 @@ class TrainingModuleV2(ProcessingModule):
 
 
         print("evaluating model...")
-        # start = time()
-        # eval_features = []
-        # for i in test_idx:
-        #     interval = time() - start
-        #     if (i + 1) % 10 == 0 and interval > 0:
-        #         print(" Reading {:>10,d} rows, {:>5.2f} rows/sec ".format(i+1,(i+1)/interval), end="\r")
-
-        #     eval_features.append(self.__get_features(preprocessed_dataset["query"][i], preprocessed_dataset["document"][i]))
-        # print()
-
         eval_targets = np.asarray([targets[i] for i in test_idx], dtype=int)
         eval_features = np.asarray([features[i] for i in test_idx], dtype=float).reshape(len(eval_targets), 2)
 
@@ -180,10 +172,24 @@ class TrainingModuleV2(ProcessingModule):
                 else:
                     right_unrelated.append(y_hat[i])
         print()
-        print("right related: ", len(right_related),
-              "wrong related: ", len(wrong_related),
-              "right unrelated: ", len(right_unrelated),
-              "wrong unrelated: ", len(wrong_unrelated), )
+        # print("right related: ", len(right_related),
+        #       "wrong related: ", len(wrong_related),
+        #       "right unrelated: ", len(right_unrelated),
+        #       "wrong unrelated: ", len(wrong_unrelated), )
         
-        print(self.model.score(eval_features, eval_targets))
+        # print(self.model.score(eval_features, eval_targets))
+        # print(eval_targets[:10])
+        # print(y_hat[:10])
+
+
+        # pretty evaluation metrics
+        true = [[1,0] if x == 0 else [0,1] for x in eval_targets]
+        hat = self.model.predict_proba(eval_features)
+        print(f"NDCG@10: {ndcg_score(true, hat, k=10)}\n")
+        print(ConfusionMatrix(eval_targets, y_hat).pretty_format(
+            show_percents=True, 
+            values_in_chart=True,
+            truncate=15,
+            sort_by_count=True
+        ), end="\n\n")
         print(" - done")

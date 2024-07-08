@@ -4,7 +4,6 @@ from datasets import Dataset, disable_caching, load_from_disk
 import numpy as np
 from time import time
 import json
-import os
 
 
 def fast_multi_insert(list, idx, objects):
