@@ -7,6 +7,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from nltk import ngrams
+import dill
 from sklearn.metrics import ndcg_score
 from nltk.metrics import ConfusionMatrix
 
@@ -46,8 +47,8 @@ def get_glove_embed(tokens, embed_map):
 def get_log_prob(probs):
     result = 0
     for p in probs:
-        result += np.log2(p)
-    return np.exp(result)
+        result += np.log2([p])[0]
+    return np.exp([result])[0]
 
 
 def get_ngram_lm(corpus_tokens, n, alpha=0.5):
@@ -135,11 +136,24 @@ class TrainingModuleV2(ProcessingModule):
 
         self.model = LogisticRegression(solver="lbfgs", penalty="l2", class_weight="balanced")
         self.vectorizer = TfidfVectorizer(analyzer='word', stop_words="english")
+        self.model_save_path = self.pipeline_config.dataset_save_path+f"/model-fs{self.train_config.feature_set}.pickle"
 
         # filled in execute()
         self.embedding_map = None
         self.ngram_n = [1,2]
         self.ngram_lms = []
+
+
+    def save_model(self):
+        with open(self.model_save_path, "wb") as f:
+            dill.settings['recurse'] = True
+            dill.dump(self.model, f, protocol=dill.HIGHEST_PROTOCOL)
+
+
+    def load_model(self):
+        with open(self.model_save_path, "rb") as f:
+            value = dill.load(f)
+            self.model = value
 
 
     def execute(self, preprocessed_dataset, embed_map):
@@ -201,9 +215,11 @@ class TrainingModuleV2(ProcessingModule):
         print("training model...")
         train_targets = np.asarray([targets[i] for i in train_idx], dtype=int)
         train_features = np.asarray([features[i] for i in train_idx], dtype=float).reshape(len(train_targets), 2)
-        # print(train_features.shape)
-        # print(train_targets.shape)
-        self.model.fit(train_features, train_targets)
+        if self.pipeline_config.load_dataset_from_disk:
+            self.load_model()
+        else:
+            self.model.fit(train_features, train_targets)
+            self.save_model()
         print(" - done")
 
 
