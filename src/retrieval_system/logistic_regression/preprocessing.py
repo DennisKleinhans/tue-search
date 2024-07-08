@@ -38,7 +38,8 @@ class PreprocessingModule(ProcessingModule):
     def __init__(self, train_config, model_config, pipeline_config) -> None:
         super().__init__(train_config, model_config)
         self.pipeline_config = pipeline_config
-        self.unk_token = "<UNK>" 
+        self.pad_token = "<PAD>"
+        self.eos_token = "<EOS>"
 
         self.VOCAB = {
             "<PAD>": 0,
@@ -56,21 +57,7 @@ class PreprocessingModule(ProcessingModule):
         self.DOCUMENTS_BY_QUERY_INDEX = []
 
         disable_caching() # important for keeping the vocab fresh
-    
-    def __FF_process_batch(self, batch):
-        for i in range(len(batch)):
-            for document in batch["passages.passage_text"][i]:
-                tokens = preprocess(" ".join([batch["query"][i], document]))
-                self.TOKENIZED_TEXT.append(tokens)
 
-                for token in tokens:
-                    if token not in self.VOCAB:
-                        self.VOCAB[token] = len(self.VOCAB)
-
-            for label in batch["passages.is_selected"][i]:
-                self.LABELS.append(label)
-
-        return {}
 
     def __SDE_process_batch(self, batch):
         for i in range(len(batch)):
@@ -81,13 +68,13 @@ class PreprocessingModule(ProcessingModule):
             query = batch["query"][i]
             pp_query = preprocess(query)
             pp_query = pp_query[:self.train_config.tokenizer_max_length] # truncation
-            pp_query = pp_query + [self.unk_token]*(self.train_config.tokenizer_max_length-len(pp_query)) # padding
+            pp_query = pp_query + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_query))-1) + [self.eos_token] # padding
 
             all_tokens = []
             for doc_idx, document in enumerate(batch["passages.passage_text"][i]):
                 pp_document = preprocess(document)
                 pp_document = pp_document[:self.train_config.tokenizer_max_length] # truncation
-                pp_document = pp_document + [self.unk_token]*(self.train_config.tokenizer_max_length-len(pp_document)) # padding
+                pp_document = pp_document + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_document))-1) + [self.eos_token] # padding
 
                 all_tokens.append(pp_document)
 
@@ -188,10 +175,6 @@ class PreprocessingModule(ProcessingModule):
                 i += 1
         print()
         return
-    
-    def __gen_FF_preprocessed_dataset(self):
-        for i in range(len(self.TOKENIZED_TEXT)):
-            yield {"text": self.TOKENIZED_TEXT[i], "label": self.LABELS[i]}
 
     def __gen_SDE_preprocessed_dataset(self):
         for i in range(len(self.SDE_QUERIES)):
@@ -201,14 +184,10 @@ class PreprocessingModule(ProcessingModule):
         print("preprocessing dataset...")
 
         BATCH_PROCESSING = {
-            "FF": self.__FF_process_batch,
-            "SDE": self.__SDE_process_batch,
             "LR": self.__SDE_process_batch,
         }
 
         GENERATOR = {
-            "FF": self.__gen_FF_preprocessed_dataset,
-            "SDE": self.__gen_SDE_preprocessed_dataset,
             "LR": self.__gen_SDE_preprocessed_dataset,
         }
 
@@ -233,7 +212,7 @@ class PreprocessingModule(ProcessingModule):
             if self.train_config.batch_padding:      
                 print(f" batch padding to size {self.train_config.batch_size}...")
                 self.__SDE_pad_containers_to_batch_size()
-                print(f"padded dataset size: {len(self.SDE_QUERIES)}")
+                print(f" padded dataset size: {len(self.SDE_QUERIES)}")
                 print("  - done")
 
             preprocessed_dataset = Dataset.from_generator(GENERATOR[self.pipeline_config.model])

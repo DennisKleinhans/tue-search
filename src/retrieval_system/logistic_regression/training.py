@@ -6,6 +6,7 @@ from datasets import load_from_disk, Dataset
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from nltk import ngrams
 from sklearn.metrics import ndcg_score
 from nltk.metrics import ConfusionMatrix
 
@@ -42,7 +43,46 @@ def get_glove_embed(tokens, embed_map):
     return embeds
 
 
-def get_features(qry_tokens, doc_tokens, embed_map, vectorizer, feature_set):
+def get_log_prob(probs):
+    result = 0
+    for p in probs:
+        result += np.log2(p)
+    return np.exp(result)
+
+
+def get_ngram_lm(corpus_tokens, n, alpha=0.5):
+    # P(w|h_2...h_n) is at key (h_2,...,h_n,w)
+    lm = {}
+    _ngrams = list(ngrams(corpus_tokens, n))
+    for ngram in _ngrams:
+        try:
+            lm[ngram] += 1
+        except KeyError:
+            lm[ngram] = 1
+    # laplace smoothing
+    d = len(lm)
+    N = len(_ngrams)
+    for key in lm:
+        lm[key] = (lm[key]+alpha)/(N+alpha*d)
+    return lm
+
+
+def weighted_ngram_matching(seq1, seq2, ngram_lms, n):
+    # counts the number of matching ngrams weighted by the inverse prob of that ngram
+    # such that rare matching ngrams result in a large coefficient (in log space)
+    ngrams1 = set(ngrams(seq1, n))
+    ngrams2 = set(ngrams(seq2, n))
+    inv_ngram_probs = []
+    for ngram in ngrams1:
+        if ngram in ngrams2:
+            try:
+                inv_ngram_probs.append((1-ngram_lms[n-1][ngram]))
+            except KeyError:
+                continue
+    return get_log_prob(inv_ngram_probs)
+
+
+def get_features(qry_tokens, doc_tokens, embed_map, vectorizer, ngram_lms, feature_set):
     query = " ".join(qry_tokens)
     qry_embeds = get_glove_embed(qry_tokens, embed_map)
     qry_embeds_1d = np.mean(qry_embeds, axis=0)
@@ -56,6 +96,8 @@ def get_features(qry_tokens, doc_tokens, embed_map, vectorizer, feature_set):
     # features
     tfidf_cos = cosine_similarity(tfidf[0], tfidf[1])
     embed_cos = cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))
+    weighted_matching_unigrams = weighted_ngram_matching(query, document, ngram_lms, n=1)
+    weighted_matching_bigrams = weighted_ngram_matching(query, document, ngram_lms, n=2)
 
     if feature_set == 1:
         return [
@@ -66,23 +108,24 @@ def get_features(qry_tokens, doc_tokens, embed_map, vectorizer, feature_set):
         result = []
         result.append(tfidf_cos)
         result.append(embed_cos)
-        for token in embed_map:
-            result.append(qry_tokens.count(token)/len(embed_map))
+        result.append(weighted_matching_unigrams)
+        result.append(weighted_matching_bigrams)
+        # TODO
         return result
     else:
         raise ValueError(f"feature set {feature_set} is not implemented.")
 
 
-def process_batch(batch, embed_map, vectorizer, feature_set, batched=True):
+def process_batch(batch, embed_map, vectorizer, ngram_lms, feature_set, batched=True):
     if batched:
         f = []
         t = []
         for i in range(len(batch)):
-            f.append(get_features(batch["query"][i], batch["document"][i], embed_map, vectorizer, feature_set))
+            f.append(get_features(batch["query"][i], batch["document"][i], embed_map, vectorizer, ngram_lms, feature_set))
             t.append(batch["target"][i])
         return {"features": f, "targets": t}
     else:
-        return {"features": get_features(batch["query"], batch["document"], embed_map, vectorizer, feature_set), "targets": batch["target"]}
+        return {"features": get_features(batch["query"], batch["document"], embed_map, vectorizer, ngram_lms, feature_set), "targets": batch["target"]}
 
 
 class TrainingModuleV2(ProcessingModule):
@@ -95,11 +138,29 @@ class TrainingModuleV2(ProcessingModule):
 
         # filled in execute()
         self.embedding_map = None
+        self.ngram_n = [1,2]
+        self.ngram_lms = []
 
 
     def execute(self, preprocessed_dataset, embed_map):
         self.embedding_map = embed_map
+
+
+        print("creating ngram models...")
+        corpus = []
+        for row in preprocessed_dataset:
+            for token in row["query"]:
+                corpus.append(token)
+            for token in row["document"]:
+                corpus.append(token)
+        # np.asarray(preprocessed_dataset["query"]).reshape(1,-1).tolist()
+        # d_tokens = np.asarray(preprocessed_dataset["document"]).reshape(1,-1).tolist()
+        for n in self.ngram_n:
+            print(f" creating {n}-gram LM...")
+            self.ngram_lms.append(get_ngram_lm(corpus, n))
+        print(" - done")
         
+
         print("mapping features...")
         dataset_savename = f"{self.pipeline_config.dataset_save_path}{self.pipeline_config.model}-mapped_features_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
         if self.pipeline_config.embedding_type == "glove":
@@ -113,7 +174,7 @@ class TrainingModuleV2(ProcessingModule):
             print(" - loaded from disk")
         else:
             mapped_features = preprocessed_dataset.map(
-                lambda batch: process_batch(batch, self.embedding_map, self.vectorizer, self.train_config.feature_set, batched=False),
+                lambda batch: process_batch(batch, self.embedding_map, self.vectorizer, self.ngram_lms, self.train_config.feature_set, batched=False),
                 batched=False,
                 remove_columns=preprocessed_dataset.column_names
             )
@@ -123,6 +184,8 @@ class TrainingModuleV2(ProcessingModule):
 
         features = mapped_features["features"]
         targets = mapped_features["targets"]
+
+        print(features[:5])
 
         
         print("creating split indices...")
