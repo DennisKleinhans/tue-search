@@ -6,7 +6,7 @@ from datasets import load_from_disk, Dataset
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
-from nltk import ngrams
+from nltk import ngrams, edit_distance
 import dill
 from sklearn.metrics import ndcg_score
 from nltk.metrics import ConfusionMatrix
@@ -29,19 +29,19 @@ def reciprocal_rank(true, hat):
         return 0
     
 
-def get_glove_embed(tokens, embed_map):
-    embed_size = 0
-    for key in embed_map:
-        embed_size = len(embed_map[key])
-        break
-    embeds = []
-    for t in tokens:
-        try:
-            embeds.append(embed_map[t])
-        except KeyError:
-            embeds.append([0.0]*embed_size)
-    # return np.mean(embeds, axis=0) # ?!
-    return embeds
+# def get_glove_embed(tokens, embed_map):
+#     embed_size = 0
+#     for key in embed_map:
+#         embed_size = len(embed_map[key])
+#         break
+#     embeds = []
+#     for t in tokens:
+#         try:
+#             embeds.append(embed_map[t])
+#         except KeyError:
+#             embeds.append([0.0]*embed_size)
+#     # return np.mean(embeds, axis=0) # ?!
+#     return embeds
 
 
 def get_log_prob(probs):
@@ -81,40 +81,62 @@ def weighted_ngram_matching(seq1, seq2, ngram_lms, n):
             except KeyError:
                 continue
     return get_log_prob(inv_ngram_probs)
+    # return np.sum(inv_ngram_probs)/len(ngrams1)
 
 
-def get_features(qry_tokens, doc_tokens, embed_map, vectorizer, ngram_lms, feature_set):
-    query = " ".join(qry_tokens)
-    qry_embeds = get_glove_embed(qry_tokens, embed_map)
+def count_matching_ngrams(qry, doc, n):
+    ngrams1 = set(ngrams(qry, n))
+    ngrams2 = set(ngrams(doc, n))
+    count = 0
+    for ngram in ngrams1:
+        if ngram in ngrams2:
+            count += 1
+    return count/len(ngrams1)
+
+
+def get_features(qry, doc, qry_embeds, doc_embeds, vectorizer, ngram_lms, feature_set):
+    query = " ".join(qry)
     qry_embeds_1d = np.mean(qry_embeds, axis=0)
 
-    document = " ".join(doc_tokens)
-    doc_embeds = get_glove_embed(doc_tokens, embed_map)
+    document = " ".join(doc)
     doc_embeds_1d = np.mean(doc_embeds, axis=0)
 
     tfidf = vectorizer.fit_transform([query, document])
 
     # features
-    tfidf_cos = cosine_similarity(tfidf[0], tfidf[1])
-    embed_cos = cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))
+    tfidf_cos = cosine_similarity(tfidf[0], tfidf[1])[0][0]
+    embed_cos = cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0]
     weighted_matching_unigrams = weighted_ngram_matching(query, document, ngram_lms, n=1)
     weighted_matching_bigrams = weighted_ngram_matching(query, document, ngram_lms, n=2)
+    weighted_matching_trigrams = weighted_ngram_matching(query, document, ngram_lms, n=3)
+
+    result = []
 
     if feature_set == 1:
-        return [
-            tfidf_cos,
-            embed_cos
-        ]
-    elif feature_set == 2:
-        result = []
+        result.append(tfidf_cos)
+        result.append(embed_cos)
+
+    elif feature_set == 2: # 0.78
         result.append(tfidf_cos)
         result.append(embed_cos)
         result.append(weighted_matching_unigrams)
         result.append(weighted_matching_bigrams)
-        # TODO
-        return result
+
+    elif feature_set == 3: # 0.85
+        result.append(tfidf_cos)
+        result.append(embed_cos)
+        result.append(weighted_matching_unigrams)
+        result.append(weighted_matching_bigrams)
+        # result.append(weighted_matching_trigrams)
+        result.append(edit_distance(qry, doc)) # levenshtein distance
+    elif feature_set == 4: # 0.87
+        result.append(weighted_matching_unigrams)
+        result.append(weighted_matching_bigrams)
+        result.append(edit_distance(qry, doc)) # levenshtein distance
     else:
         raise ValueError(f"feature set {feature_set} is not implemented.")
+    
+    return result
 
 
 def process_batch(batch, embed_map, vectorizer, ngram_lms, feature_set, batched=True):
@@ -122,11 +144,11 @@ def process_batch(batch, embed_map, vectorizer, ngram_lms, feature_set, batched=
         f = []
         t = []
         for i in range(len(batch)):
-            f.append(get_features(batch["query"][i], batch["document"][i], embed_map, vectorizer, ngram_lms, feature_set))
+            f.append(get_features(batch["query"][i], batch["document"][i], batch["query_embeds"][i], batch["document_embeds"][i], vectorizer, ngram_lms, feature_set))
             t.append(batch["target"][i])
         return {"features": f, "targets": t}
     else:
-        return {"features": get_features(batch["query"], batch["document"], embed_map, vectorizer, ngram_lms, feature_set), "targets": batch["target"]}
+        return {"features": get_features(batch["query"], batch["document"], batch["query_embeds"], batch["document_embeds"], vectorizer, ngram_lms, feature_set), "targets": batch["target"]}
 
 
 class TrainingModuleV2(ProcessingModule):
@@ -140,7 +162,7 @@ class TrainingModuleV2(ProcessingModule):
 
         # filled in execute()
         self.embedding_map = None
-        self.ngram_n = [1,2]
+        self.ngram_n = range(1, 6)
         self.ngram_lms = []
 
 
@@ -156,23 +178,23 @@ class TrainingModuleV2(ProcessingModule):
             self.model = value
 
 
-    def execute(self, preprocessed_dataset, embed_map):
-        self.embedding_map = embed_map
+    def execute(self, preprocessed_dataset):
+        # self.embedding_map = embed_map
 
-
-        print("creating ngram models...")
-        corpus = []
-        for row in preprocessed_dataset:
-            for token in row["query"]:
-                corpus.append(token)
-            for token in row["document"]:
-                corpus.append(token)
-        # np.asarray(preprocessed_dataset["query"]).reshape(1,-1).tolist()
-        # d_tokens = np.asarray(preprocessed_dataset["document"]).reshape(1,-1).tolist()
-        for n in self.ngram_n:
-            print(f" creating {n}-gram LM...")
-            self.ngram_lms.append(get_ngram_lm(corpus, n))
-        print(" - done")
+        if not self.pipeline_config.load_mapped_features_from_disk:
+            print("creating ngram models...")
+            corpus = []
+            for row in preprocessed_dataset:
+                for token in row["query"]:
+                    corpus.append(token)
+                for token in row["document"]:
+                    corpus.append(token)
+            # np.asarray(preprocessed_dataset["query"]).reshape(1,-1).tolist()
+            # d_tokens = np.asarray(preprocessed_dataset["document"]).reshape(1,-1).tolist()
+            for n in self.ngram_n:
+                print(f" creating {n}-gram LM...")
+                self.ngram_lms.append(get_ngram_lm(corpus, n))
+            print(" - done")
         
 
         print("mapping features...")
@@ -183,13 +205,14 @@ class TrainingModuleV2(ProcessingModule):
             dataset_savename += "_padded"
         dataset_savename += f"_tml{self.train_config.tokenizer_max_length}_fs{self.train_config.feature_set}"
 
-        if self.pipeline_config.load_dataset_from_disk:
+        if self.pipeline_config.load_mapped_features_from_disk:
             mapped_features = load_from_disk(dataset_savename)
             print(" - loaded from disk")
         else:
+            batched = False
             mapped_features = preprocessed_dataset.map(
-                lambda batch: process_batch(batch, self.embedding_map, self.vectorizer, self.ngram_lms, self.train_config.feature_set, batched=False),
-                batched=False,
+                lambda batch: process_batch(batch, self.embedding_map, self.vectorizer, self.ngram_lms, self.train_config.feature_set, batched=batched),
+                batched=batched,
                 remove_columns=preprocessed_dataset.column_names
             )
             mapped_features.save_to_disk(dataset_savename)
@@ -214,8 +237,8 @@ class TrainingModuleV2(ProcessingModule):
 
         print("training model...")
         train_targets = np.asarray([targets[i] for i in train_idx], dtype=int)
-        train_features = np.asarray([features[i] for i in train_idx], dtype=float).reshape(len(train_targets), 2)
-        if self.pipeline_config.load_dataset_from_disk:
+        train_features = np.asarray([features[i] for i in train_idx], dtype=float)
+        if self.pipeline_config.load_model_weights_from_disk:
             self.load_model()
         else:
             self.model.fit(train_features, train_targets)
@@ -225,40 +248,10 @@ class TrainingModuleV2(ProcessingModule):
 
         print("evaluating model...")
         eval_targets = np.asarray([targets[i] for i in test_idx], dtype=int)
-        eval_features = np.asarray([features[i] for i in test_idx], dtype=float).reshape(len(eval_targets), 2)
+        eval_features = np.asarray([features[i] for i in test_idx], dtype=float)
 
         y_hat = [np.argmax(scores) for scores in self.model.predict_proba(eval_features)]
         # print(y_hat)
-
-        wrong_unrelated = []
-        right_unrelated = []
-        wrong_related = []
-        right_related = []
-        start = time()
-        for i in range(len(y_hat)):
-            interval = time() - start
-            if (i + 1) % 10 == 0 and interval > 0:
-                print(" Reading {:>10,d} rows, {:>5.2f} rows/sec ".format(i+1,(i+1)/interval), end="\r")
-
-            if eval_targets[i] == 1:
-                if y_hat[i] > .5:
-                    right_related.append(y_hat[i])
-                else:
-                    wrong_unrelated.append(y_hat[i])
-            else:
-                if y_hat[i] > .5:
-                    wrong_related.append(y_hat[i])
-                else:
-                    right_unrelated.append(y_hat[i])
-        print()
-        # print("right related: ", len(right_related),
-        #       "wrong related: ", len(wrong_related),
-        #       "right unrelated: ", len(right_unrelated),
-        #       "wrong unrelated: ", len(wrong_unrelated), )
-        
-        # print(self.model.score(eval_features, eval_targets))
-        # print(eval_targets[:10])
-        # print(y_hat[:10])
 
 
         # pretty evaluation metrics
@@ -270,5 +263,5 @@ class TrainingModuleV2(ProcessingModule):
             values_in_chart=True,
             truncate=15,
             sort_by_count=True
-        ), end="\n\n")
+        ))
         print(" - done")

@@ -26,27 +26,14 @@ if __name__ == '__main__':
     training_config = BertConfig.from_json_file(CONFIG_SAVE_PATH+f"{pipeline_config.model}-training_config.json")
     model_config = BertConfig.from_json_file(CONFIG_SAVE_PATH+f"{pipeline_config.model}-model_config.json")
 
-    PERFORM_RETRIEVAL = True # FF only
+    PERFORM_RETRIEVAL = True # not implemented
 
 
     # dataset loading
-    disable_caching()  # needed for vocab generation!!!
+    disable_caching()
     msmarco = load_dataset(
         "microsoft/ms_marco", "v2.1", split="train", verification_mode="no_checks"
     ).flatten()
-
-
-    # tokenization + vocab creation
-    PM = PreprocessingModule(
-        training_config,
-        model_config,
-        pipeline_config
-    )
-    preprocessed_dataset, vocab = PM.execute(msmarco)
-
-    # update params
-    model_config.num_embeddings = len(vocab)                                                                    
-    model_config.vocab_size = len(vocab)
 
     print("loading embedding map...")
     embed_map = None
@@ -56,9 +43,18 @@ if __name__ == '__main__':
         embed_map = create_glove_embedding_map()
         print(" - done")
 
+
+    # tokenization + vocab creation
+    PM = PreprocessingModule(
+        training_config,
+        model_config,
+        pipeline_config
+    )
+    preprocessed_dataset = PM.execute(msmarco, embed_map)
+
     TM = TrainingModuleV2(
         training_config,
         model_config,
         pipeline_config
     )
-    TM.execute(preprocessed_dataset, embed_map)
+    TM.execute(preprocessed_dataset)

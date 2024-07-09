@@ -3,5 +3,5 @@
     "batch_padding": true,
     "tokenizer_max_length": 32,
     "train_split_size": 0.8,
-    "feature_set": 2
+    "feature_set": 4
 }
