@@ -75,8 +75,8 @@ def run_inverted_index_process():
 
 run_inverted_index_process()
 
-#Test if the database is being filled properly with the results
-'''def fetch_inverted_index(api_key: str, db_url: str, db_name: str) -> Dict[str, List[int]]:
+#Test if the database is being filled properly with the results (comment this code after test)
+def fetch_inverted_index(api_key: str, db_url: str, db_name: str) -> Dict[str, List[int]]:
     try:
         conn = sqlitecloud.connect(f"sqlitecloud://{db_url}?apikey={api_key}")
         conn.execute(f"USE DATABASE {db_name}")
@@ -98,11 +98,10 @@ run_inverted_index_process()
     
     finally:
         if conn:
-            conn.close()'''
+            conn.close()
 
-#inverted_index = fetch_inverted_index(api_key, db_url, db_name)
-#print(inverted_index)
-
+inverted_index = fetch_inverted_index(api_key, db_url, db_name)
+print(inverted_index)
 
 #TODO Potentially move this code to the app.py 
 '''@app.route("/search", methods=["POST"])
