@@ -35,5 +35,23 @@ def insert_document(cursor, url, title, document):
     except Exception as e:
         logger.error(f"Error inserting document: {e}")
         return False
-
-
+    
+def get_all_documents(cursor):
+    try:
+        cursor.execute('SELECT * FROM documents;')
+        documents = cursor.fetchall()
+        logger.info("Documents retrieved.")
+        return documents
+    except Exception as e:
+        logger.error(f"Error retrieving documents: {e}")
+        return []
+    
+def get_first_10_documents(cursor):
+    try:
+        cursor.execute('SELECT * FROM documents LIMIT 10;')
+        documents = cursor.fetchall()
+        logger.info("First 10 documents retrieved.")
+        return documents
+    except Exception as e:
+        logger.error(f"Error retrieving documents: {e}")
+        return []
