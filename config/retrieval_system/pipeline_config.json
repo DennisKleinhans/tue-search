@@ -1,7 +1,7 @@
 {
     "model": "LR",
     "dataset_save_path": "data/retrieval_system/",
-    "load_dataset_from_disk": true,
+    "load_dataset_from_disk": false,
     "load_mapped_features_from_disk": false,
     "load_model_weights_from_disk": false,
     "embedding_type": "glove",

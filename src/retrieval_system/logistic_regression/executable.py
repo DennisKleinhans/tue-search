@@ -29,11 +29,15 @@ if __name__ == '__main__':
     PERFORM_RETRIEVAL = True # not implemented
 
 
-    # dataset loading
-    disable_caching()
+    # dataset loading - replace with databank retrieval!
+    # disable_caching() # shouldn't be a problem anymore 
     msmarco = load_dataset(
-        "microsoft/ms_marco", "v2.1", split="train", verification_mode="no_checks"
+        "microsoft/ms_marco", "v1.1", split=f"train[:{10000}]", verification_mode="no_checks"
     ).flatten()
+
+    
+
+
 
     print("loading embedding map...")
     embed_map = None

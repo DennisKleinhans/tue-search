@@ -51,21 +51,32 @@ def get_log_prob(probs):
     return np.exp([result])[0]
 
 
-def get_ngram_lm(corpus_tokens, n, alpha=0.5):
-    # P(w|h_2...h_n) is at key (h_2,...,h_n,w)
+def get_ngram_prob(ngram, lm_tuple):
+    ngram_lm, unseen_prob = lm_tuple
+    result = 0.0
+    try:
+        result = ngram_lm[ngram]
+    except KeyError:
+        result = unseen_prob
+    return result
+
+
+def get_ngram_lm(corpus_tokens, pad_token, n, alpha=0.5):
+    """returns tuple: (dict[ngram] = prob of ngram, prob for unseen ngram)"""
     lm = {}
     _ngrams = list(ngrams(corpus_tokens, n))
     for ngram in _ngrams:
-        try:
-            lm[ngram] += 1
-        except KeyError:
-            lm[ngram] = 1
+        if ngram.count(pad_token) < n:
+            try:
+                lm[ngram] += 1
+            except KeyError:
+                lm[ngram] = 1
     # laplace smoothing
     d = len(lm)
     N = len(_ngrams)
     for key in lm:
         lm[key] = (lm[key]+alpha)/(N+alpha*d)
-    return lm
+    return (lm, alpha/(N+alpha*d))
 
 
 def weighted_ngram_matching(seq1, seq2, ngram_lms, n):
@@ -76,10 +87,7 @@ def weighted_ngram_matching(seq1, seq2, ngram_lms, n):
     inv_ngram_probs = []
     for ngram in ngrams1:
         if ngram in ngrams2:
-            try:
-                inv_ngram_probs.append((1-ngram_lms[n-1][ngram]))
-            except KeyError:
-                continue
+            inv_ngram_probs.append(1-get_ngram_prob(ngram, ngram_lms[n-1]))
     return get_log_prob(inv_ngram_probs)
     # return np.sum(inv_ngram_probs)/len(ngrams1)
 
@@ -139,7 +147,7 @@ def get_features(qry, doc, qry_embeds, doc_embeds, vectorizer, ngram_lms, featur
     return result
 
 
-def process_batch(batch, embed_map, vectorizer, ngram_lms, feature_set, batched=True):
+def process_batch(batch, vectorizer, ngram_lms, feature_set, batched=True):
     if batched:
         f = []
         t = []
@@ -158,7 +166,7 @@ class TrainingModuleV2(ProcessingModule):
 
         self.model = LogisticRegression(solver="lbfgs", penalty="l2", class_weight="balanced")
         self.vectorizer = TfidfVectorizer(analyzer='word', stop_words="english")
-        self.model_save_path = self.pipeline_config.dataset_save_path+f"/model-fs{self.train_config.feature_set}.pickle"
+        self.model_save_path = self.pipeline_config.dataset_save_path+f"/{self.pipeline_config.model}-model-fs{self.train_config.feature_set}.pickle"
 
         # filled in execute()
         self.embedding_map = None
@@ -193,12 +201,12 @@ class TrainingModuleV2(ProcessingModule):
             # d_tokens = np.asarray(preprocessed_dataset["document"]).reshape(1,-1).tolist()
             for n in self.ngram_n:
                 print(f" creating {n}-gram LM...")
-                self.ngram_lms.append(get_ngram_lm(corpus, n))
+                self.ngram_lms.append(get_ngram_lm(corpus, self.train_config.pad_token, n))
             print(" - done")
         
 
         print("mapping features...")
-        dataset_savename = f"{self.pipeline_config.dataset_save_path}{self.pipeline_config.model}-mapped_features_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
+        dataset_savename = f"{self.pipeline_config.dataset_save_path}-mapped_features_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
         if self.pipeline_config.embedding_type == "glove":
             dataset_savename += "-".join(self.pipeline_config.glove_file.lstrip("glove").rstrip(".txt").split("."))
         if self.train_config.batch_padding:
