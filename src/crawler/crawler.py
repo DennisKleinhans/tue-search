@@ -16,7 +16,9 @@ from playwright.sync_api import Playwright
 from playwright.sync_api import sync_playwright
 from requests_oauthlib import OAuth2Session  # type:ignore
 from langdetect import detect
+import sys
 
+sys.path.insert(0, f"{os.getcwd()}")
 from src.crawler.configs import INDEX_BATCH_SIZE
 from src.crawler.configs import CRAWLER_OAUTH_CLIENT_ID
 from src.crawler.configs import CRAWLER_OAUTH_CLIENT_SECRET

@@ -39,10 +39,11 @@ class PreprocessingModule(ProcessingModule):
     def __init__(self, train_config, model_config, pipeline_config) -> None:
         super().__init__(train_config, model_config)
         self.pipeline_config = pipeline_config
+        disable_caching()
+
         self.pad_token = self.train_config.pad_token
         self.eos_token = self.train_config.eos_token
 
-        # filled in execute()
         self.embedding_map = None
 
         self.QUERIES = []
@@ -107,8 +108,12 @@ class PreprocessingModule(ProcessingModule):
                 pp_document = pp_document + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_document))-1) + [self.eos_token] # padding
 
                 # update containers for generator
-                qry_embeds = get_glove_embed(pp_query, self.embedding_map)
-                doc_embeds = get_glove_embed(pp_document, self.embedding_map)
+                if self.pipeline_config.embedding_type == "glove":
+                    qry_embeds = get_glove_embed(pp_query, self.embedding_map)
+                    doc_embeds = get_glove_embed(pp_document, self.embedding_map)
+                else: # quick and dirty solution ;)
+                    qry_embeds = []
+                    doc_embeds = []
 
                 all_tokens.append(pp_document)
                 all_tokens_embeds.append(doc_embeds)
@@ -227,17 +232,18 @@ class PreprocessingModule(ProcessingModule):
             yield {"query": self.QUERIES[i], "document": self.DOCUMENTS[i], "query_embeds": self.QUERIES_EMBEDS[i], "document_embeds": self.DOCUMENTS_EMBEDS[i], "target": self.TARGETS[i]}
 
     def execute(self, dataset, embed_map):
-        self.embedding_map = embed_map
+        if self.pipeline_config.embedding_type == "glove":
+            self.embedding_map = embed_map
 
         print("preprocessing dataset...")
-        dataset_savename = f"{self.pipeline_config.dataset_save_path}-preprocessed_dataset_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
+        dataset_savename = f"{self.pipeline_config.dataset_save_path}preprocessed_dataset_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
         if self.pipeline_config.embedding_type == "glove":
             dataset_savename += "-".join(self.pipeline_config.glove_file.lstrip("glove").rstrip(".txt").split("."))
         if self.train_config.batch_padding:
             dataset_savename += "_padded"
         dataset_savename += f"_tml{self.train_config.tokenizer_max_length}"
 
-        dataset_savename += f"_1.1_train-{10000}"
+        dataset_savename += f"_1.1_train-{self.train_config.dataset_size}"
 
         if self.pipeline_config.load_dataset_from_disk:
             preprocessed_dataset = load_from_disk(dataset_savename)
