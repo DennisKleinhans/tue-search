@@ -64,6 +64,7 @@ class RetrievalSystemInterface():
                 batched=False
             )
         else: # to match the msmarco architecture, just in case things go south with the custom training set ;)
+            # EXPECTS ONE DOCUMENT AND ONE LABEL PER ROW/QUERY!!!
             dataset = dataset.map(
                 lambda batch: {
                     "query": batch["query"],
