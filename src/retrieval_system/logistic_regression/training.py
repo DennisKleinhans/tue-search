@@ -1,8 +1,5 @@
-from module_classes import ProcessingModule
 from sklearn.feature_extraction.text import TfidfVectorizer
-from nltk.tokenize import wordpunct_tokenize
-from time import time
-from datasets import load_from_disk, Dataset
+from datasets import load_from_disk
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -10,6 +7,11 @@ from nltk import ngrams, edit_distance
 import dill
 from sklearn.metrics import ndcg_score
 from nltk.metrics import ConfusionMatrix
+import sys
+import os
+
+sys.path.insert(0, f"{os.getcwd()}")
+from src.retrieval_system.logistic_regression.module_classes import ProcessingModule
 
 
 def reciprocal_rank(true, hat): # not used
@@ -170,7 +172,7 @@ class TrainingModuleV2(ProcessingModule):
 
         # filled in execute()
         self.embedding_map = None
-        self.ngram_n = range(1, 6)
+        self.ngram_n = range(1, 4)
         self.ngram_lms = []
 
 
@@ -187,8 +189,6 @@ class TrainingModuleV2(ProcessingModule):
 
 
     def execute(self, preprocessed_dataset):
-        # self.embedding_map = embed_map
-
         if not self.pipeline_config.load_mapped_features_from_disk or not self.pipeline_config.load_dataset_from_disk:
             print("creating ngram models...")
             corpus = []
@@ -279,3 +279,50 @@ class TrainingModuleV2(ProcessingModule):
             sort_by_count=True
         ))
         print(" - done")
+
+
+    def retrieve(self, search_query, search_documents):
+        # load model weights
+        try:
+            self.load_model()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Model weights file {self.model_save_path} not found. Train the model before attempting search retrieval.")
+        
+        # load and prepare ngram LMs
+        try:
+            with open(self.token_corpus_save_path, "rb") as f:
+                corpus = dill.load(f)
+                f.close()
+            for n in self.ngram_n:
+                self.ngram_lms.append(get_ngram_lm(corpus, self.train_config.pad_token, n))
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Token corpus file {self.token_corpus_save_path} not found. Train the model before attempting search retrieval.")
+
+        # glove embedding catch
+        # implementing this is currently not planned bc glove embedding does not improve performance much anyway
+        if self.pipeline_config.embedding_type != "none":
+            raise NotImplementedError(f"Embedding type '{self.pipeline_config.embedding_type}' is not supported for search retrieval!")
+        
+        # actual retrieval :)
+        features = [
+            get_features(
+                search_query, 
+                doc_tokens, 
+                [],
+                [], 
+                self.vectorizer, 
+                self.ngram_lms, 
+                self.train_config.feature_set
+            )
+            for doc_tokens in search_documents
+        ]
+        for f in features:
+            print(f)
+
+        probs = [scores[1] for scores in self.model.predict_proba(features)]
+
+        return_tuples = [(search_documents[i], probs[i]) for i in range(len(search_documents))]
+        return_tuples.sort(key=lambda x: x[1], reverse=True)
+
+        return return_tuples
+

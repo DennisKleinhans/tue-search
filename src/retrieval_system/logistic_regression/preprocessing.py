@@ -1,10 +1,12 @@
-from module_classes import ProcessingModule
 from nltk.tokenize import wordpunct_tokenize
 from datasets import Dataset, disable_caching, load_from_disk
 import numpy as np
 from time import time
-import json
+import sys
 import os
+
+sys.path.insert(0, f"{os.getcwd()}")
+from src.retrieval_system.logistic_regression.module_classes import ProcessingModule
 
 
 def fast_multi_insert(list, idx, objects):
@@ -60,18 +62,20 @@ class PreprocessingModule(ProcessingModule):
         if batched:
             for i in range(len(batch)):
                 # skip queries that have no ground truth documents
-                if sum(batch["passages.is_selected"][i]) == 0:
+                if sum(batch["label"][i]) == 0:
                     continue
 
-                query = batch["query"][i]
-                pp_query = preprocess(query)
+                # query = batch["query"][i]
+                # pp_query = preprocess(query)
+                pp_query = batch["query"][i]
                 pp_query = pp_query[:self.train_config.tokenizer_max_length] # truncation
                 pp_query = pp_query + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_query))-1) + [self.eos_token] # padding
 
                 all_tokens = []
                 all_tokens_embeds = []
-                for doc_idx, document in enumerate(batch["passages.passage_text"][i]):
-                    pp_document = preprocess(document)
+                for doc_idx, document in enumerate(batch["document"][i]):
+                    # pp_document = preprocess(document)
+                    pp_document = document
                     pp_document = pp_document[:self.train_config.tokenizer_max_length] # truncation
                     pp_document = pp_document + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_document))-1) + [self.eos_token] # padding
 
@@ -86,24 +90,26 @@ class PreprocessingModule(ProcessingModule):
                     self.DOCUMENTS.append(pp_document)
                     self.QUERIES_EMBEDS.append(qry_embeds)
                     self.DOCUMENTS_EMBEDS.append(doc_embeds)
-                    self.TARGETS.append(float(batch["passages.is_selected"][i][doc_idx]))
+                    self.TARGETS.append(float(batch["label"][i][doc_idx]))
 
                 self.DOCUMENTS_BY_QUERY_INDEX.append(all_tokens)
                 self.DOCUMENT_EMBEDS_BY_QUERY_INDEX.append(all_tokens_embeds)
         else:
             # skip queries that have no ground truth documents
-            if sum(batch["passages.is_selected"]) == 0:
+            if sum(batch["label"]) == 0:
                 return {}
 
-            query = batch["query"]
-            pp_query = preprocess(query)
+            # query = batch["query"]
+            # pp_query = preprocess(query)
+            pp_query = batch["query"]
             pp_query = pp_query[:self.train_config.tokenizer_max_length] # truncation
             pp_query = pp_query + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_query))-1) + [self.eos_token] # padding
 
             all_tokens = []
             all_tokens_embeds = []
-            for doc_idx, document in enumerate(batch["passages.passage_text"]):
-                pp_document = preprocess(document)
+            for doc_idx, document in enumerate(batch["document"]):
+                # pp_document = preprocess(document)
+                pp_document = document
                 pp_document = pp_document[:self.train_config.tokenizer_max_length] # truncation
                 pp_document = pp_document + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_document))-1) + [self.eos_token] # padding
 
@@ -122,7 +128,7 @@ class PreprocessingModule(ProcessingModule):
                 self.DOCUMENTS.append(pp_document)
                 self.QUERIES_EMBEDS.append(qry_embeds)
                 self.DOCUMENTS_EMBEDS.append(doc_embeds)
-                self.TARGETS.append(float(batch["passages.is_selected"][doc_idx]))
+                self.TARGETS.append(float(batch["label"][doc_idx]))
 
             self.DOCUMENTS_BY_QUERY_INDEX.append(all_tokens)
             self.DOCUMENT_EMBEDS_BY_QUERY_INDEX.append(all_tokens_embeds)
