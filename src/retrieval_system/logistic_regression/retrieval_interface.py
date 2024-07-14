@@ -99,7 +99,7 @@ class RetrievalSystemInterface():
 if __name__ == "__main__":
     RSI = RetrievalSystemInterface()
 
-    RSI.train_retrieval_system()
+    # RSI.train_retrieval_system()
 
     qry = preprocess("Efficient Estimation of Word Representations in Vector Space")
     docs = [

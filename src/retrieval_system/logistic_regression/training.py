@@ -4,6 +4,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from nltk import ngrams, edit_distance
+from sklearn.metrics import f1_score, precision_score, recall_score
 import dill
 from sklearn.metrics import ndcg_score
 from nltk.metrics import ConfusionMatrix
@@ -168,7 +169,7 @@ class TrainingModuleV2(ProcessingModule):
         self.model = LogisticRegression(solver="lbfgs", penalty="l2", class_weight="balanced")
         self.vectorizer = TfidfVectorizer(analyzer='word', stop_words="english")
         self.model_save_path = self.pipeline_config.dataset_save_path+f"/{self.pipeline_config.model}-model-fs{self.train_config.feature_set}.pickle"
-        self.token_corpus_save_path = self.pipeline_config.dataset_save_path+"token_corpus.pickle"
+        self.ngram_lms_save_path = self.pipeline_config.dataset_save_path+"ngram_lms.pickle"
 
         # filled in execute()
         self.embedding_map = None
@@ -191,23 +192,22 @@ class TrainingModuleV2(ProcessingModule):
     def execute(self, preprocessed_dataset):
         if not self.pipeline_config.load_mapped_features_from_disk or not self.pipeline_config.load_dataset_from_disk:
             print("creating ngram models...")
-            corpus = []
             try:
-                with open(self.token_corpus_save_path, "rb") as f:
-                    corpus = dill.load(f)
+                with open(self.ngram_lms_save_path, "rb") as f:
+                    self.ngram_lms = dill.load(f)
             except FileNotFoundError:
+                corpus = []
                 for row in preprocessed_dataset:
                     for token in row["query"]:
                         corpus.append(token)
                     for token in row["document"]:
                         corpus.append(token)
-                with open(self.token_corpus_save_path, "wb") as f:
+                for n in self.ngram_n:
+                    print(f" creating {n}-gram LM...")
+                    self.ngram_lms.append(get_ngram_lm(corpus, self.train_config.pad_token, n))
+                with open(self.ngram_lms_save_path, "wb") as f:
                     dill.settings['recurse'] = True
-                    dill.dump(corpus, f, protocol=dill.HIGHEST_PROTOCOL)
-
-            for n in self.ngram_n:
-                print(f" creating {n}-gram LM...")
-                self.ngram_lms.append(get_ngram_lm(corpus, self.train_config.pad_token, n))
+                    dill.dump(self.ngram_lms, f, protocol=dill.HIGHEST_PROTOCOL)
             print(" - done")
         
 
@@ -236,7 +236,7 @@ class TrainingModuleV2(ProcessingModule):
         features = mapped_features["features"]
         targets = mapped_features["targets"]
 
-        print(features[:5])
+        # print(features[:5])
 
         
         print("creating split indices...")
@@ -271,6 +271,9 @@ class TrainingModuleV2(ProcessingModule):
         # pretty evaluation metrics
         true = [[1,0] if x == 0 else [0,1] for x in eval_targets]
         hat = self.model.predict_proba(eval_features)
+        print(f"Precision: {precision_score(eval_targets, y_hat)}")
+        print(f"Recall: {recall_score(eval_targets, y_hat)}")
+        print(f"macro-avg. F1: {f1_score(eval_targets, y_hat, average='macro')}")
         print(f"NDCG@10: {ndcg_score(true, hat, k=10)}\n")
         print(ConfusionMatrix(eval_targets, y_hat).pretty_format(
             show_percents=True, 
@@ -290,13 +293,11 @@ class TrainingModuleV2(ProcessingModule):
         
         # load and prepare ngram LMs
         try:
-            with open(self.token_corpus_save_path, "rb") as f:
-                corpus = dill.load(f)
+            with open(self.ngram_lms_save_path, "rb") as f:
+                self.ngram_lms = dill.load(f)
                 f.close()
-            for n in self.ngram_n:
-                self.ngram_lms.append(get_ngram_lm(corpus, self.train_config.pad_token, n))
         except FileNotFoundError:
-            raise FileNotFoundError(f"Token corpus file {self.token_corpus_save_path} not found. Train the model before attempting search retrieval.")
+            raise FileNotFoundError(f"Ngram LMs file {self.ngram_lms_save_path} not found. Train the model before attempting search retrieval.")
 
         # glove embedding catch
         # implementing this is currently not planned bc glove embedding does not improve performance much anyway
