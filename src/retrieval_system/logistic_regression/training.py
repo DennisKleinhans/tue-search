@@ -1,18 +1,21 @@
-from module_classes import ProcessingModule
 from sklearn.feature_extraction.text import TfidfVectorizer
-from nltk.tokenize import wordpunct_tokenize
-from time import time
-from datasets import load_from_disk, Dataset
+from datasets import load_from_disk
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from nltk import ngrams, edit_distance
+from sklearn.metrics import f1_score, precision_score, recall_score
 import dill
 from sklearn.metrics import ndcg_score
 from nltk.metrics import ConfusionMatrix
+import sys
+import os
+
+sys.path.insert(0, f"{os.getcwd()}")
+from src.retrieval_system.logistic_regression.module_classes import ProcessingModule
 
 
-def reciprocal_rank(true, hat):
+def reciprocal_rank(true, hat): # not used
     """"computes the rr for one batch (aka true should have only one 1)"""
     sorted_ranks = sorted(enumerate(hat), key=lambda t: t[1], reverse=True)
     ground_truth_rank = -1
@@ -102,6 +105,11 @@ def count_matching_ngrams(qry, doc, n):
     return count/len(ngrams1)
 
 
+def normalized_levenshtein_distance(query, document, subst_cost):
+    norm = max(len(query), len(document))
+    return edit_distance(query, document, substitution_cost=subst_cost)/(norm*subst_cost)
+
+
 def get_features(qry, doc, qry_embeds, doc_embeds, vectorizer, ngram_lms, feature_set):
     query = " ".join(qry)
     qry_embeds_1d = np.mean(qry_embeds, axis=0)
@@ -111,43 +119,37 @@ def get_features(qry, doc, qry_embeds, doc_embeds, vectorizer, ngram_lms, featur
 
     tfidf = vectorizer.fit_transform([query, document])
 
-    # features
-    tfidf_cos = cosine_similarity(tfidf[0], tfidf[1])[0][0]
-    embed_cos = cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0]
-    weighted_matching_unigrams = weighted_ngram_matching(query, document, ngram_lms, n=1)
-    weighted_matching_bigrams = weighted_ngram_matching(query, document, ngram_lms, n=2)
-    weighted_matching_trigrams = weighted_ngram_matching(query, document, ngram_lms, n=3)
-
     result = []
 
-    if feature_set == 1:
-        result.append(tfidf_cos)
-        result.append(embed_cos)
+    if feature_set == 1: # 
+        result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
+        # result.append(cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0])
 
-    elif feature_set == 2: # 0.78
-        result.append(tfidf_cos)
-        result.append(embed_cos)
-        result.append(weighted_matching_unigrams)
-        result.append(weighted_matching_bigrams)
+    elif feature_set == 2: # 
+        result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
+        # result.append(cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0])
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=1))
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
 
-    elif feature_set == 3: # 0.85
-        result.append(tfidf_cos)
-        result.append(embed_cos)
-        result.append(weighted_matching_unigrams)
-        result.append(weighted_matching_bigrams)
-        # result.append(weighted_matching_trigrams)
-        result.append(edit_distance(qry, doc)) # levenshtein distance
-    elif feature_set == 4: # 0.87
-        result.append(weighted_matching_unigrams)
-        result.append(weighted_matching_bigrams)
-        result.append(edit_distance(qry, doc)) # levenshtein distance
+    elif feature_set == 3: # 
+        result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
+        # result.append(cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0])
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=1))
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
+        result.append(normalized_levenshtein_distance(qry, doc, subst_cost=2))
+    elif feature_set == 4: # 
+        result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=1))
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
+        # result.append(normalized_levenshtein_distance(query, document, subst_cost=1))
+        result.append(edit_distance(qry, doc, substitution_cost=2))
     else:
         raise ValueError(f"feature set {feature_set} is not implemented.")
     
     return result
 
 
-def process_batch(batch, vectorizer, ngram_lms, feature_set, batched=True):
+def process_batch(batch, vectorizer, ngram_lms, feature_set, batched):
     if batched:
         f = []
         t = []
@@ -167,10 +169,11 @@ class TrainingModuleV2(ProcessingModule):
         self.model = LogisticRegression(solver="lbfgs", penalty="l2", class_weight="balanced")
         self.vectorizer = TfidfVectorizer(analyzer='word', stop_words="english")
         self.model_save_path = self.pipeline_config.dataset_save_path+f"/{self.pipeline_config.model}-model-fs{self.train_config.feature_set}.pickle"
+        self.ngram_lms_save_path = self.pipeline_config.dataset_save_path+"ngram_lms.pickle"
 
         # filled in execute()
         self.embedding_map = None
-        self.ngram_n = range(1, 6)
+        self.ngram_n = range(1, 4)
         self.ngram_lms = []
 
 
@@ -187,26 +190,29 @@ class TrainingModuleV2(ProcessingModule):
 
 
     def execute(self, preprocessed_dataset):
-        # self.embedding_map = embed_map
-
-        if not self.pipeline_config.load_mapped_features_from_disk:
+        if not self.pipeline_config.load_mapped_features_from_disk or not self.pipeline_config.load_dataset_from_disk:
             print("creating ngram models...")
-            corpus = []
-            for row in preprocessed_dataset:
-                for token in row["query"]:
-                    corpus.append(token)
-                for token in row["document"]:
-                    corpus.append(token)
-            # np.asarray(preprocessed_dataset["query"]).reshape(1,-1).tolist()
-            # d_tokens = np.asarray(preprocessed_dataset["document"]).reshape(1,-1).tolist()
-            for n in self.ngram_n:
-                print(f" creating {n}-gram LM...")
-                self.ngram_lms.append(get_ngram_lm(corpus, self.train_config.pad_token, n))
+            try:
+                with open(self.ngram_lms_save_path, "rb") as f:
+                    self.ngram_lms = dill.load(f)
+            except FileNotFoundError:
+                corpus = []
+                for row in preprocessed_dataset:
+                    for token in row["query"]:
+                        corpus.append(token)
+                    for token in row["document"]:
+                        corpus.append(token)
+                for n in self.ngram_n:
+                    print(f" creating {n}-gram LM...")
+                    self.ngram_lms.append(get_ngram_lm(corpus, self.train_config.pad_token, n))
+                with open(self.ngram_lms_save_path, "wb") as f:
+                    dill.settings['recurse'] = True
+                    dill.dump(self.ngram_lms, f, protocol=dill.HIGHEST_PROTOCOL)
             print(" - done")
         
 
         print("mapping features...")
-        dataset_savename = f"{self.pipeline_config.dataset_save_path}-mapped_features_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
+        dataset_savename = f"{self.pipeline_config.dataset_save_path}mapped_features_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
         if self.pipeline_config.embedding_type == "glove":
             dataset_savename += "-".join(self.pipeline_config.glove_file.lstrip("glove").rstrip(".txt").split("."))
         if self.train_config.batch_padding:
@@ -217,10 +223,10 @@ class TrainingModuleV2(ProcessingModule):
             mapped_features = load_from_disk(dataset_savename)
             print(" - loaded from disk")
         else:
-            batched = False
+            _batched = False
             mapped_features = preprocessed_dataset.map(
-                lambda batch: process_batch(batch, self.embedding_map, self.vectorizer, self.ngram_lms, self.train_config.feature_set, batched=batched),
-                batched=batched,
+                lambda batch: process_batch(batch, self.vectorizer, self.ngram_lms, self.train_config.feature_set, batched=_batched),
+                batched=_batched,
                 remove_columns=preprocessed_dataset.column_names
             )
             mapped_features.save_to_disk(dataset_savename)
@@ -230,7 +236,7 @@ class TrainingModuleV2(ProcessingModule):
         features = mapped_features["features"]
         targets = mapped_features["targets"]
 
-        print(features[:5])
+        # print(features[:5])
 
         
         print("creating split indices...")
@@ -265,6 +271,9 @@ class TrainingModuleV2(ProcessingModule):
         # pretty evaluation metrics
         true = [[1,0] if x == 0 else [0,1] for x in eval_targets]
         hat = self.model.predict_proba(eval_features)
+        print(f"Precision: {precision_score(eval_targets, y_hat)}")
+        print(f"Recall: {recall_score(eval_targets, y_hat)}")
+        print(f"macro-avg. F1: {f1_score(eval_targets, y_hat, average='macro')}")
         print(f"NDCG@10: {ndcg_score(true, hat, k=10)}\n")
         print(ConfusionMatrix(eval_targets, y_hat).pretty_format(
             show_percents=True, 
@@ -273,3 +282,48 @@ class TrainingModuleV2(ProcessingModule):
             sort_by_count=True
         ))
         print(" - done")
+
+
+    def retrieve(self, search_query, search_documents):
+        # load model weights
+        try:
+            self.load_model()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Model weights file {self.model_save_path} not found. Train the model before attempting search retrieval.")
+        
+        # load and prepare ngram LMs
+        try:
+            with open(self.ngram_lms_save_path, "rb") as f:
+                self.ngram_lms = dill.load(f)
+                f.close()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Ngram LMs file {self.ngram_lms_save_path} not found. Train the model before attempting search retrieval.")
+
+        # glove embedding catch
+        # implementing this is currently not planned bc glove embedding does not improve performance much anyway
+        if self.pipeline_config.embedding_type != "none":
+            raise NotImplementedError(f"Embedding type '{self.pipeline_config.embedding_type}' is not supported for search retrieval!")
+        
+        # actual retrieval :)
+        features = [
+            get_features(
+                search_query, 
+                doc_tokens, 
+                [],
+                [], 
+                self.vectorizer, 
+                self.ngram_lms, 
+                self.train_config.feature_set
+            )
+            for doc_tokens in search_documents
+        ]
+        for f in features:
+            print(f)
+
+        probs = [scores[1] for scores in self.model.predict_proba(features)]
+
+        return_tuples = [(search_documents[i], probs[i]) for i in range(len(search_documents))]
+        return_tuples.sort(key=lambda x: x[1], reverse=True)
+
+        return return_tuples
+
