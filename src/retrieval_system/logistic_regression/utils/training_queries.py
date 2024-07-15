@@ -49,8 +49,15 @@ def generate_n_grams(tokens: list, n: int) -> list:
     return n_grams
 
 
-def generate_training_data(
-    documents: dict, num_queries: int = 5, negative_ratio: float = 0.5
+def document_contains_query(doc_tokens, query_tokens):
+    return all(token in doc_tokens for token in query_tokens)
+
+
+def generate_training_data_batch(
+    documents: dict,
+    num_queries: int = 5,
+    negative_ratio: float = 0.5,
+    num_documents_per_query: int = 5,
 ) -> Dataset:
     """
     Generate training data for a ranking model.
@@ -63,56 +70,111 @@ def generate_training_data(
     Returns:
     - A Dataset object with fields 'query', 'document', and 'flag'
     """
-    data = {"query": [], "document": [], "flag": []}
+    data = {"query": [], "document": [], "lable": []}
 
     doc_ids = list(documents.keys())
     keywords = extract_keywords(documents)
 
-    for doc_id, tokens in documents.items():
-        num_positive_queries = int(num_queries * (1 - negative_ratio))
-        num_negative_queries = num_queries - num_positive_queries
+    for _ in range(num_queries):
+        # Wähle zufällig ein Dokument aus und extrahiere daraus eine Query
+        doc_id = random.choice(doc_ids)
+        tokens = documents[doc_id]
 
-        # Extract named entities and n-grams
+        # Extrahiere benannte Entitäten, n-Grams und Schlüsselwörter für die Query
         named_entities = extract_named_entities(tokens)
         n_grams = generate_n_grams(tokens, random.randint(3, 5))
-
-        # Combination of named entities and n-grams for positive queries
         possible_queries = named_entities + n_grams + keywords[doc_id]
 
-        # Filter by at least 2 tokens
+        # Filtere nach mindestens 3 Tokens
         possible_queries = [
-            query for query in possible_queries if len(query.split()) >= 2
+            query for query in possible_queries if len(query.split()) >= 3
         ]
 
-        # Generation of positive queries
-        positive_queries = random.sample(
-            possible_queries, min(num_positive_queries, len(possible_queries))
+        if not possible_queries:
+            continue  # Falls keine gültigen Queries gefunden werden, überspringen
+
+        query = random.choice(possible_queries)
+        query_tokens = query.split()
+        data["query"].append(query)
+
+        # Wähle positive Dokumente aus, die die Query-Tokens enthalten
+        positive_doc_ids = [
+            doc_id
+            for doc_id in doc_ids
+            if document_contains_query(documents[doc_id], query_tokens)
+        ]
+
+        # Falls nicht genügend positive Dokumente gefunden werden, überspringen
+        if len(positive_doc_ids) < int(num_documents_per_query * (1 - negative_ratio)):
+            continue
+
+        num_positive_documents = min(
+            int(num_documents_per_query * (1 - negative_ratio)), len(positive_doc_ids)
         )
-        for query in positive_queries:
-            data["query"].append(query)
-            data["document"].append(" ".join(tokens))
-            data["flag"].append(1)
+        num_negative_documents = num_documents_per_query - num_positive_documents
 
-        # Generation of negative queries
-        for _ in range(num_negative_queries):
-            negative_doc_id = random.choice([d for d in doc_ids if d != doc_id])
-            negative_tokens = documents[negative_doc_id]
-            negative_named_entities = extract_named_entities(negative_tokens)
-            negative_n_grams = generate_n_grams(negative_tokens, random.randint(3, 5))
-            negative_possible_queries = (
-                negative_named_entities + negative_n_grams + keywords[negative_doc_id]
-            )
+        positive_doc_ids = random.sample(positive_doc_ids, num_positive_documents)
+        negative_doc_ids = random.sample(
+            [d for d in doc_ids if d not in positive_doc_ids], num_negative_documents
+        )
 
-            # Filter by at least 2 tokens
-            negative_possible_queries = [
-                query for query in negative_possible_queries if len(query.split()) >= 2
-            ]
+        documents_list = [
+            " ".join(documents[doc_id])
+            for doc_id in positive_doc_ids + negative_doc_ids
+        ]
+        flags_list = [1] * len(positive_doc_ids) + [0] * len(negative_doc_ids)
 
-            if negative_possible_queries:
-                negative_query = random.choice(negative_possible_queries)
-                data["query"].append(negative_query)
-                data["document"].append(" ".join(tokens))
-                data["flag"].append(0)
+        data["document"].append(documents_list)
+        data["lable"].append(flags_list)
 
-    dataset = Dataset.from_dict(data)
+    return data
+
+
+def generate_training_data(
+    documents,
+    batch_size=100,
+    num_queries=5,
+    num_documents_per_query=3,
+    negative_ratio=0.5,
+) -> Dataset:
+    """
+    Generate training data for a logistic regression model.
+
+    This function takes a dictionary of documents as input and generates training data
+    for a logistic regression model. It divides the documents into batches of size `batch_size`
+    and generates training data for each batch using the `generate_training_data_batch` function.
+    The training data is then concatenated to form a full dataset.
+
+    Parameters:
+    - documents (dict): A dictionary of documents where the keys are document IDs and the values
+        are the corresponding document contents.
+    - batch_size (int, optional): The size of each batch. Defaults to 100.
+    - num_queries (int, optional): The number of queries to generate for each batch. Defaults to 5.
+    - num_documents_per_query (int, optional): The number of documents to include per query. Defaults to 3.
+    - negative_ratio (float, optional): The ratio of negative samples to include in the training data.
+        Negative samples are documents that are not relevant to the query. Defaults to 0.5.
+
+    Returns:
+    - full_dataset (Dataset): The full training dataset containing the generated training data for all batches.
+    """
+    total_docs = len(documents)
+    doc_ids = list(documents.keys())
+    batches = [doc_ids[i : i + batch_size] for i in range(0, total_docs, batch_size)]
+
+    all_queries = []
+    all_documents = []
+    all_flags = []
+
+    for batch in batches:
+        batch_documents = {doc_id: documents[doc_id] for doc_id in batch}
+        batch_data = generate_training_data_batch(
+            batch_documents, num_queries, num_documents_per_query, negative_ratio
+        )
+        all_queries.extend(batch_data["query"])
+        all_documents.extend(batch_data["document"])
+        all_flags.extend(batch_data["lable"])
+
+    dataset = Dataset.from_dict(
+        {"query": all_queries, "document": all_documents, "lable": all_flags}
+    )
     return dataset
