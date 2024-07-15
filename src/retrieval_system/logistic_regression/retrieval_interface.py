@@ -61,18 +61,21 @@ class RetrievalSystemInterface():
                     ],
                     "label": batch["label"]
                 },
-                batched=False
+                batched=False,
+                remove_columns=dataset.column_names
             )
+            # print(dataset[:3]) 
+            # exit()
         else: # to match the msmarco architecture, just in case things go south with the custom training set ;)
-            # EXPECTS ONE DOCUMENT AND ONE LABEL PER ROW/QUERY!!!
-            dataset = dataset.map(
-                lambda batch: {
-                    "query": batch["query"],
-                    "document": [batch["document"]],
-                    "label": [batch["label"]]
-                },
-                batched=False
-            )
+            # dataset = dataset.map(
+            #     lambda batch: {
+            #         "query": batch["query"],
+            #         "document": [batch["document"]],
+            #         "label": [batch["label"]]
+            #     },
+            #     batched=False
+            # )
+            pass
 
 
         print("loading embedding map...")
@@ -99,7 +102,7 @@ class RetrievalSystemInterface():
 if __name__ == "__main__":
     RSI = RetrievalSystemInterface()
 
-    # RSI.train_retrieval_system()
+    RSI.train_retrieval_system()
 
     qry = preprocess("Efficient Estimation of Word Representations in Vector Space")
     docs = [
