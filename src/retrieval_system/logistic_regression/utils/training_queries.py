@@ -66,9 +66,10 @@ def generate_training_data_batch(
     - documents: dict, a dictionary with document ids as keys and tokenized document contents as values
     - num_queries: int, number of queries to generate per document
     - negative_ratio: float, ratio of negative examples to generate (e.g., 0.5 means half of the queries are negative)
+    - num_documents_per_query: int, number of documents (both positive and negative) to generate per query
 
     Returns:
-    - A Dataset object with fields 'query', 'document', and 'flag'
+    - A Dataset object with fields 'query', 'document', and 'lable'
     """
     data = {"query": [], "document": [], "lable": []}
 
@@ -76,44 +77,45 @@ def generate_training_data_batch(
     keywords = extract_keywords(documents)
 
     for _ in range(num_queries):
-        # Wähle zufällig ein Dokument aus und extrahiere daraus eine Query
+        # Choose a random document and extract a query from it
         doc_id = random.choice(doc_ids)
         tokens = documents[doc_id]
 
-        # Extrahiere benannte Entitäten, n-Grams und Schlüsselwörter für die Query
+        # Extract named entities, n-grams, and keywords for the query
         named_entities = extract_named_entities(tokens)
         n_grams = generate_n_grams(tokens, random.randint(3, 5))
-        possible_queries = named_entities + n_grams + keywords[doc_id]
+        possible_queries = named_entities + n_grams + keywords.get(doc_id, [])
 
-        # Filtere nach mindestens 3 Tokens
+        # Filter queries to ensure at least 3 tokens
         possible_queries = [
             query for query in possible_queries if len(query.split()) >= 3
         ]
 
         if not possible_queries:
-            continue  # Falls keine gültigen Queries gefunden werden, überspringen
+            continue  # Skip if no valid queries found
 
         query = random.choice(possible_queries)
         query_tokens = query.split()
         data["query"].append(query)
 
-        # Wähle positive Dokumente aus, die die Query-Tokens enthalten
+        # Choose positive documents that contain the query tokens
         positive_doc_ids = [
             doc_id
             for doc_id in doc_ids
             if document_contains_query(documents[doc_id], query_tokens)
         ]
 
-        # Falls nicht genügend positive Dokumente gefunden werden, überspringen
-        if len(positive_doc_ids) < int(num_documents_per_query * (1 - negative_ratio)):
-            continue
+        if not positive_doc_ids:
+            continue  # Skip if no positive documents found
 
+        # Choose positive documents up to the limit or available documents
         num_positive_documents = min(
-            int(num_documents_per_query * (1 - negative_ratio)), len(positive_doc_ids)
+            len(positive_doc_ids), int(num_documents_per_query * negative_ratio)
         )
-        num_negative_documents = num_documents_per_query - num_positive_documents
-
         positive_doc_ids = random.sample(positive_doc_ids, num_positive_documents)
+
+        # Choose negative documents
+        num_negative_documents = num_documents_per_query - num_positive_documents
         negative_doc_ids = random.sample(
             [d for d in doc_ids if d not in positive_doc_ids], num_negative_documents
         )
