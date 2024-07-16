@@ -2,6 +2,7 @@ import random
 from datasets import Dataset
 import spacy
 from sklearn.feature_extraction.text import TfidfVectorizer
+import sqlitecloud
 
 # Loading the Spacy model
 try:
@@ -13,7 +14,7 @@ except OSError:
     exit()
 
 
-def extract_named_entities(tokens: list) -> list:
+def __extract_named_entities(tokens: list) -> list:
     """
     Extract named entities from a list of tokens using Spacy.
     """
@@ -22,7 +23,7 @@ def extract_named_entities(tokens: list) -> list:
     return entities
 
 
-def extract_keywords(documents: dict) -> dict:
+def __extract_keywords(documents: dict) -> dict:
     """
     Extract keywords from the documents using TF-IDF.
     """
@@ -41,7 +42,7 @@ def extract_keywords(documents: dict) -> dict:
     return keywords
 
 
-def generate_n_grams(tokens: list, n: int) -> list:
+def __generate_n_grams(tokens: list, n: int) -> list:
     """
     Generate n-grams from the given list of tokens.
     """
@@ -49,24 +50,42 @@ def generate_n_grams(tokens: list, n: int) -> list:
     return n_grams
 
 
-def document_contains_query(doc_tokens, query_tokens):
+def __document_contains_query(doc_tokens, query_tokens):
     return all(token in doc_tokens for token in query_tokens)
 
 
-def generate_training_data_batch(
-    documents: dict,
-    num_queries: int = 5,
-    negative_ratio: float = 0.5,
-    num_documents_per_query: int = 5,
+def __get_documents_form_db() -> dict:
+    api_key = "xZXTNaxWuKM6ryHCVELzSVnT3KC3AubraCDuwFyxKJ4"
+    db_url = "cyd2d2juiz.sqlite.cloud:8860"
+    db_name = "documents"
+
+    conn = sqlitecloud.connect(f"sqlitecloud://{db_url}?apikey={api_key}")
+    conn.execute(f"USE DATABASE {db_name}")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+    SELECT document_id, token
+    FROM documents_processed
+    """
+    )
+
+    rows = cursor.fetchall()
+    documents = {row[0]: row[1] for row in rows}
+
+    return documents
+
+
+def __generate_training_data(
+    documents: dict, num_documents_per_query: int = 5, negative_ratio: float = 0.5
 ) -> Dataset:
     """
     Generate training data for a ranking model.
 
     Parameters:
     - documents: dict, a dictionary with document ids as keys and tokenized document contents as values
-    - num_queries: int, number of queries to generate per document
-    - negative_ratio: float, ratio of negative examples to generate (e.g., 0.5 means half of the queries are negative)
     - num_documents_per_query: int, number of documents (both positive and negative) to generate per query
+    - negative_ratio: float, ratio of negative examples to generate (e.g., 0.5 means half of the queries are negative)
 
     Returns:
     - A Dataset object with fields 'query', 'document', and 'lable'
@@ -74,7 +93,10 @@ def generate_training_data_batch(
     data = {"query": [], "document": [], "lable": []}
 
     doc_ids = list(documents.keys())
-    keywords = extract_keywords(documents)
+    keywords = __extract_keywords(documents)
+
+    # Define the number of queries to generate based on the number of documents
+    num_queries = len(documents) // num_documents_per_query
 
     for _ in range(num_queries):
         # Choose a random document and extract a query from it
@@ -82,8 +104,8 @@ def generate_training_data_batch(
         tokens = documents[doc_id]
 
         # Extract named entities, n-grams, and keywords for the query
-        named_entities = extract_named_entities(tokens)
-        n_grams = generate_n_grams(tokens, random.randint(3, 5))
+        named_entities = __extract_named_entities(tokens)
+        n_grams = __generate_n_grams(tokens, random.randint(3, 5))
         possible_queries = named_entities + n_grams + keywords.get(doc_id, [])
 
         # Filter queries to ensure at least 3 tokens
@@ -102,7 +124,7 @@ def generate_training_data_batch(
         positive_doc_ids = [
             doc_id
             for doc_id in doc_ids
-            if document_contains_query(documents[doc_id], query_tokens)
+            if __document_contains_query(documents[doc_id], query_tokens)
         ]
 
         if not positive_doc_ids:
@@ -110,7 +132,7 @@ def generate_training_data_batch(
 
         # Choose positive documents up to the limit or available documents
         num_positive_documents = min(
-            len(positive_doc_ids), int(num_documents_per_query * negative_ratio)
+            len(positive_doc_ids), int(num_documents_per_query * (1 - negative_ratio))
         )
         positive_doc_ids = random.sample(positive_doc_ids, num_positive_documents)
 
@@ -121,62 +143,28 @@ def generate_training_data_batch(
         )
 
         documents_list = [
-            " ".join(documents[doc_id])
-            for doc_id in positive_doc_ids + negative_doc_ids
+            "".join(documents[doc_id]) for doc_id in positive_doc_ids + negative_doc_ids
         ]
         flags_list = [1] * len(positive_doc_ids) + [0] * len(negative_doc_ids)
 
         data["document"].append(documents_list)
         data["lable"].append(flags_list)
 
-    return data
-
-
-def generate_training_data(
-    documents,
-    batch_size=100,
-    num_queries=5,
-    num_documents_per_query=3,
-    negative_ratio=0.5,
-) -> Dataset:
-    """
-    Generate training data for a logistic regression model.
-
-    This function takes a dictionary of documents as input and generates training data
-    for a logistic regression model. It divides the documents into batches of size `batch_size`
-    and generates training data for each batch using the `generate_training_data_batch` function.
-    The training data is then concatenated to form a full dataset.
-
-    Parameters:
-    - documents (dict): A dictionary of documents where the keys are document IDs and the values
-        are the corresponding document contents.
-    - batch_size (int, optional): The size of each batch. Defaults to 100.
-    - num_queries (int, optional): The number of queries to generate for each batch. Defaults to 5.
-    - num_documents_per_query (int, optional): The number of documents to include per query. Defaults to 3.
-    - negative_ratio (float, optional): The ratio of negative samples to include in the training data.
-        Negative samples are documents that are not relevant to the query. Defaults to 0.5.
-
-    Returns:
-    - full_dataset (Dataset): The full training dataset containing the generated training data for all batches.
-    """
-    total_docs = len(documents)
-    doc_ids = list(documents.keys())
-    batches = [doc_ids[i : i + batch_size] for i in range(0, total_docs, batch_size)]
-
-    all_queries = []
-    all_documents = []
-    all_flags = []
-
-    for batch in batches:
-        batch_documents = {doc_id: documents[doc_id] for doc_id in batch}
-        batch_data = generate_training_data_batch(
-            batch_documents, num_queries, num_documents_per_query, negative_ratio
-        )
-        all_queries.extend(batch_data["query"])
-        all_documents.extend(batch_data["document"])
-        all_flags.extend(batch_data["lable"])
-
-    dataset = Dataset.from_dict(
-        {"query": all_queries, "document": all_documents, "lable": all_flags}
-    )
+    dataset = Dataset.from_dict(data)
     return dataset
+
+
+def get_synthetic_training_data():
+    documents = __get_documents_form_db()
+    dataset = __generate_training_data(documents=documents, num_documents_per_query=1)
+    return dataset
+
+
+dataset = get_synthetic_training_data()
+
+for i in range(len(dataset)):
+    print(f"Query: {dataset[i]['query']}")
+    for doc, label in zip(dataset[i]["document"], dataset[i]["lable"]):
+        print(f"  Document: {doc}")
+        print(f"  Label: {label}")
+    print()
