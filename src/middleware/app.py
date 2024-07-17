@@ -1,6 +1,7 @@
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from src.indexing.inverted_index import handle_query
 
 app = Flask(__name__)
 CORS(app)  # enable CORS for all routes
@@ -30,13 +31,12 @@ def batch_search():
     else:
         return jsonify({"error": "Missing 'queries' parameter"}), 400
 
-
 def process_single_query(query):
     # call the preprocessing
-    preprocessing_results = preprocessing(query)
+    inverted_index_results = handle_query(query)
 
     # call the ranking function with the preprocessing and the query as input to get the ranked results
-    ranked_results = retrieve_ranking(query, preprocessing_results)
+    ranked_results = retrieve_ranking(query, inverted_index_results)
 
     # send the ranked results as a response
     response = {"status": "success", "query": query, "results": ranked_results}

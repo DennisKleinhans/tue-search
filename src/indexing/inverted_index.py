@@ -3,8 +3,10 @@ from collections import defaultdict
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from typing import Dict, List
+from preprocessing import tokenize_query
 import sqlitecloud
 import logging
+
 
 app = Flask(__name__)
 CORS(app) 
@@ -103,43 +105,23 @@ def fetch_inverted_index(api_key: str, db_url: str, db_name: str) -> Dict[str, L
 inverted_index = fetch_inverted_index(api_key, db_url, db_name)
 print(inverted_index)
 
-#TODO Potentially move this code to the app.py 
-'''@app.route("/search", methods=["POST"])
-def search():
-    global inverted_index
-    
-    data = request.get_json()
-    if "query" in data:
-        query = data.get("query")
-        logger.info(f"Received query: {query}")
-        
-        relevant_doc_ids = retrieve_documents_from_index(inverted_index, query)
-
-        # For demonstration, returning just document IDs
-        return jsonify({"status": "success", "query": query, "results": relevant_doc_ids})
-    else:
-        return jsonify({"error": "Missing 'query' parameter"}), 400
-
-@app.errorhandler(404)
-def page_not_found(error):
-    return jsonify({"error": "Resource not found"}), 404
-
-@app.errorhandler(500)
-def internal_server_error(error):
-    return jsonify({"error": "Internal server error"}), 500
-
-def retrieve_documents_from_index(inverted_index: Dict[str, List[int]], query: str) -> List[int]:
-    query_terms = query.lower().split()
+def retrieve_documents_from_index(inverted_index: Dict[str, List[int]], query_tokens: List[str]) -> List[int]:
     relevant_doc_ids = set()
 
-    for term in query_terms:
+    for term in query_tokens:
         if term in inverted_index:
             relevant_doc_ids.update(inverted_index[term])
     
     return list(relevant_doc_ids)
 
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)'''
-
 #TODO receive the query preprocess it and compare to the inverted_index list of unique words.
-#TODO return the results to retrieval_system.
+def handle_query(query):
+    query_tokens = tokenize_query(query)
+    logger.info(f"Preprocessed query tokens: {query_tokens}")
+
+    relevant_doc_ids = retrieve_documents_from_index(inverted_index, query_tokens)
+    logger.info(f"Relevant documents for query '{query}': {relevant_doc_ids}")
+
+    return relevant_doc_ids
+
+#TODO return the results to retrieval_system as tokenized docs.

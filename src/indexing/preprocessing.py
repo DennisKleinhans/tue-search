@@ -39,6 +39,14 @@ def tokenize_docs(data: List[List[str]]) -> List[List[str]]:
         tokenized_docs.append(lemmatized_tokens)
     return tokenized_docs
 
+def tokenize_query(text: str) -> List[str]:
+    stop_words = set(stopwords.words('english'))
+    tokens = word_tokenize(text)
+    cleaned_tokens = [token.lower() for token in tokens if re.match(r'^[a-zA-Z0-9äöüß]+$', token)]
+    final_tokens = [token for token in cleaned_tokens if token not in stop_words]
+    lemmatized_tokens = lemmatize_tokens(final_tokens)
+    return lemmatized_tokens
+
 def fetch_and_tokenize_documents(api_key: str, db_url: str, db_name: str) -> List[List[str]]:
     try:
         conn = sqlitecloud.connect(f"sqlitecloud://{db_url}?apikey={api_key}")
@@ -74,4 +82,3 @@ if tokenized_docs_from_db:
     conn.commit()
     conn.close()
 '''
-
