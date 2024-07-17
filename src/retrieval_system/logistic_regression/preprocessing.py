@@ -1,10 +1,12 @@
-from module_classes import ProcessingModule
 from nltk.tokenize import wordpunct_tokenize
 from datasets import Dataset, disable_caching, load_from_disk
 import numpy as np
 from time import time
-import json
+import sys
 import os
+
+sys.path.insert(0, f"{os.getcwd()}")
+from src.retrieval_system.logistic_regression.module_classes import ProcessingModule
 
 
 def fast_multi_insert(list, idx, objects):
@@ -39,10 +41,11 @@ class PreprocessingModule(ProcessingModule):
     def __init__(self, train_config, model_config, pipeline_config) -> None:
         super().__init__(train_config, model_config)
         self.pipeline_config = pipeline_config
+        disable_caching()
+
         self.pad_token = self.train_config.pad_token
         self.eos_token = self.train_config.eos_token
 
-        # filled in execute()
         self.embedding_map = None
 
         self.QUERIES = []
@@ -59,18 +62,20 @@ class PreprocessingModule(ProcessingModule):
         if batched:
             for i in range(len(batch)):
                 # skip queries that have no ground truth documents
-                if sum(batch["passages.is_selected"][i]) == 0:
+                if sum(batch["label"][i]) == 0:
                     continue
 
-                query = batch["query"][i]
-                pp_query = preprocess(query)
+                # query = batch["query"][i]
+                # pp_query = preprocess(query)
+                pp_query = batch["query"][i]
                 pp_query = pp_query[:self.train_config.tokenizer_max_length] # truncation
                 pp_query = pp_query + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_query))-1) + [self.eos_token] # padding
 
                 all_tokens = []
                 all_tokens_embeds = []
-                for doc_idx, document in enumerate(batch["passages.passage_text"][i]):
-                    pp_document = preprocess(document)
+                for doc_idx, document in enumerate(batch["document"][i]):
+                    # pp_document = preprocess(document)
+                    pp_document = document
                     pp_document = pp_document[:self.train_config.tokenizer_max_length] # truncation
                     pp_document = pp_document + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_document))-1) + [self.eos_token] # padding
 
@@ -85,30 +90,36 @@ class PreprocessingModule(ProcessingModule):
                     self.DOCUMENTS.append(pp_document)
                     self.QUERIES_EMBEDS.append(qry_embeds)
                     self.DOCUMENTS_EMBEDS.append(doc_embeds)
-                    self.TARGETS.append(float(batch["passages.is_selected"][i][doc_idx]))
+                    self.TARGETS.append(float(batch["label"][i][doc_idx]))
 
                 self.DOCUMENTS_BY_QUERY_INDEX.append(all_tokens)
                 self.DOCUMENT_EMBEDS_BY_QUERY_INDEX.append(all_tokens_embeds)
         else:
             # skip queries that have no ground truth documents
-            if sum(batch["passages.is_selected"]) == 0:
+            if sum(batch["label"]) == 0:
                 return {}
 
-            query = batch["query"]
-            pp_query = preprocess(query)
+            # query = batch["query"]
+            # pp_query = preprocess(query)
+            pp_query = batch["query"]
             pp_query = pp_query[:self.train_config.tokenizer_max_length] # truncation
             pp_query = pp_query + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_query))-1) + [self.eos_token] # padding
 
             all_tokens = []
             all_tokens_embeds = []
-            for doc_idx, document in enumerate(batch["passages.passage_text"]):
-                pp_document = preprocess(document)
+            for doc_idx, document in enumerate(batch["document"]):
+                # pp_document = preprocess(document)
+                pp_document = document
                 pp_document = pp_document[:self.train_config.tokenizer_max_length] # truncation
                 pp_document = pp_document + [self.pad_token]*((self.train_config.tokenizer_max_length-len(pp_document))-1) + [self.eos_token] # padding
 
                 # update containers for generator
-                qry_embeds = get_glove_embed(pp_query, self.embedding_map)
-                doc_embeds = get_glove_embed(pp_document, self.embedding_map)
+                if self.pipeline_config.embedding_type == "glove":
+                    qry_embeds = get_glove_embed(pp_query, self.embedding_map)
+                    doc_embeds = get_glove_embed(pp_document, self.embedding_map)
+                else: # quick and dirty solution ;)
+                    qry_embeds = []
+                    doc_embeds = []
 
                 all_tokens.append(pp_document)
                 all_tokens_embeds.append(doc_embeds)
@@ -117,7 +128,7 @@ class PreprocessingModule(ProcessingModule):
                 self.DOCUMENTS.append(pp_document)
                 self.QUERIES_EMBEDS.append(qry_embeds)
                 self.DOCUMENTS_EMBEDS.append(doc_embeds)
-                self.TARGETS.append(float(batch["passages.is_selected"][doc_idx]))
+                self.TARGETS.append(float(batch["label"][doc_idx]))
 
             self.DOCUMENTS_BY_QUERY_INDEX.append(all_tokens)
             self.DOCUMENT_EMBEDS_BY_QUERY_INDEX.append(all_tokens_embeds)
@@ -227,17 +238,18 @@ class PreprocessingModule(ProcessingModule):
             yield {"query": self.QUERIES[i], "document": self.DOCUMENTS[i], "query_embeds": self.QUERIES_EMBEDS[i], "document_embeds": self.DOCUMENTS_EMBEDS[i], "target": self.TARGETS[i]}
 
     def execute(self, dataset, embed_map):
-        self.embedding_map = embed_map
+        if self.pipeline_config.embedding_type == "glove":
+            self.embedding_map = embed_map
 
         print("preprocessing dataset...")
-        dataset_savename = f"{self.pipeline_config.dataset_save_path}-preprocessed_dataset_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
+        dataset_savename = f"{self.pipeline_config.dataset_save_path}preprocessed_dataset_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
         if self.pipeline_config.embedding_type == "glove":
             dataset_savename += "-".join(self.pipeline_config.glove_file.lstrip("glove").rstrip(".txt").split("."))
         if self.train_config.batch_padding:
             dataset_savename += "_padded"
         dataset_savename += f"_tml{self.train_config.tokenizer_max_length}"
 
-        dataset_savename += f"_1.1_train-{10000}"
+        dataset_savename += f"_1.1_train-{self.train_config.dataset_size}"
 
         if self.pipeline_config.load_dataset_from_disk:
             preprocessed_dataset = load_from_disk(dataset_savename)

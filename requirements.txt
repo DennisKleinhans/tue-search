@@ -7,3 +7,5 @@ langdetect
 pandas
 sqlitecloud
 pysqlite3
+scikit-learn 
+spacy

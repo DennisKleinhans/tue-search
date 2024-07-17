@@ -2,9 +2,16 @@ import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from src.indexing.inverted_index import handle_query
+import sys
+import os
+sys.path.insert(0, f"{os.getcwd()}")
+from src.retrieval_system.logistic_regression.retrieval_interface import RetrievalSystemInterface
 
 app = Flask(__name__)
 CORS(app)  # enable CORS for all routes
+
+# init RSI
+RSI = RetrievalSystemInterface()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,7 +43,7 @@ def process_single_query(query):
     inverted_index_results = handle_query(query)
 
     # call the ranking function with the preprocessing and the query as input to get the ranked results
-    ranked_results = retrieve_ranking(query, inverted_index_results)
+    ranked_results = RSI.retrieve_ranking(query, inverted_index_results)
 
     # send the ranked results as a response
     response = {"status": "success", "query": query, "results": ranked_results}
@@ -52,7 +59,7 @@ def process_batch_queries(queries):
 
         # process each query individually
         preprocessing_results = preprocessing(query)
-        ranked_results = retrieve_ranking(query, preprocessing_results)
+        ranked_results = RSI.retrieve_ranking(query, preprocessing_results)
 
         batch_results.append({"queryNumber": query_number, "results": ranked_results})
 
@@ -72,14 +79,14 @@ def preprocessing(query):
     return index_results
 
 
-def retrieve_ranking(query, index_results):
-    # simulate ranking results
-    logging.info(f"Ranking index with: {query} on index results: {index_results}")
-    ranked_results = [
-        {"id": 1, "content": "Document 1 content", "score": 0.95},
-        {"id": 2, "content": "Document 2 content", "score": 0.85},
-    ]
-    return ranked_results
+# def retrieve_ranking(query, index_results):
+#     # simulate ranking results
+#     logging.info(f"Ranking index with: {query} on index results: {index_results}")
+#     ranked_results = [
+#         {"id": 1, "content": "Document 1 content", "score": 0.95},
+#         {"id": 2, "content": "Document 2 content", "score": 0.85},
+#     ]
+#     return ranked_results
 
 
 if __name__ == "__main__":
