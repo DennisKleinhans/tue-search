@@ -66,6 +66,11 @@ def get_ngram_prob(ngram, lm_tuple):
 
 def get_ngram_lm(corpus_tokens, pad_token, n, alpha=0.5):
     """returns tuple: (dict[ngram] = prob of ngram, prob for unseen ngram)"""
+
+    def laplace_smoothing(count, dim, trials, alpha=alpha):
+        theta = (count+alpha)/(trials+alpha*dim)
+        return trials*theta
+
     lm = {}
     _ngrams = list(ngrams(corpus_tokens, n))
     for ngram in _ngrams:
@@ -74,12 +79,29 @@ def get_ngram_lm(corpus_tokens, pad_token, n, alpha=0.5):
                 lm[ngram] += 1
             except KeyError:
                 lm[ngram] = 1
-    # laplace smoothing
-    d = len(lm)
-    N = len(_ngrams)
-    for key in lm:
-        lm[key] = (lm[key]+alpha)/(N+alpha*d)
-    return (lm, alpha/(N+alpha*d))
+
+    if n > 1:
+        _smaller_ngrams = list(ngrams(corpus_tokens, n-1))
+        num_smaller_ngram = {}
+        for s_ngram in _smaller_ngrams:
+            try:
+                num_smaller_ngram[s_ngram] += 1
+            except KeyError:
+                num_smaller_ngram[s_ngram] = 1
+    
+    zero_occurrence_prob = 1e-10 # is small
+    for ngram in lm:
+        if n > 1: # MLE with relative frequency
+            # given ngram x_1...x_n
+            # returns P(x_n|x_1:n-1) = count(x_1:n)/count(x_1:n-1)
+            s_ngram = ngram[:len(ngram)-1]
+            num_s_ngram = num_smaller_ngram[s_ngram]
+            lm[ngram] = lm[ngram]/num_s_ngram
+        else: # unigrams
+            # given unigram x
+            # returns count(x)/len(all unigrams)
+            lm[ngram] = lm[ngram]/len(_ngrams)
+    return (lm, zero_occurrence_prob)
 
 
 def weighted_ngram_matching(seq1, seq2, ngram_lms, n):
@@ -143,6 +165,12 @@ def get_features(qry, doc, qry_embeds, doc_embeds, vectorizer, ngram_lms, featur
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
         # result.append(normalized_levenshtein_distance(query, document, subst_cost=1))
         result.append(edit_distance(qry, doc, substitution_cost=2))
+    elif feature_set == 5: # 
+        result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=3))
+        # result.append(normalized_levenshtein_distance(query, document, subst_cost=1))
+        result.append(edit_distance(qry, doc, substitution_cost=1))
     else:
         raise ValueError(f"feature set {feature_set} is not implemented.")
     
@@ -192,10 +220,14 @@ class TrainingModuleV2(ProcessingModule):
     def execute(self, preprocessed_dataset):
         if not self.pipeline_config.load_mapped_features_from_disk or not self.pipeline_config.load_dataset_from_disk:
             print("creating ngram models...")
+            recompute = self.pipeline_config.recompute_ngram_lms or not self.pipeline_config.load_dataset_from_disk
             try:
                 with open(self.ngram_lms_save_path, "rb") as f:
                     self.ngram_lms = dill.load(f)
             except FileNotFoundError:
+                recompute = True
+            
+            if recompute:
                 corpus = []
                 for row in preprocessed_dataset:
                     for token in row["query"]:
