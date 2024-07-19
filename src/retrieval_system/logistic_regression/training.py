@@ -330,8 +330,6 @@ class TrainingModuleV2(ProcessingModule):
             )
             for doc_tokens in search_documents
         ]
-        for f in features:
-            print(f)
 
         probs = [scores[1] for scores in self.model.predict_proba(features)]
 
