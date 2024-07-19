@@ -6,7 +6,7 @@ from typing import List, Dict
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from sql_utils import get_all_documents, get_first_10_documents
+from crawler.sql_utils import get_all_documents, get_first_10_documents
 
 # Ensure necessary NLTK resources are downloaded
 try:
@@ -21,38 +21,48 @@ else:
 # nltk.download('stopwords')
 # nltk.download('wordnet')
 
-#TODO query processing needs to be the same process as document preprocessing
+# TODO query processing needs to be the same process as document preprocessing
+
 
 def lemmatize_tokens(tokens: List[str]) -> List[str]:
     lemmatizer = WordNetLemmatizer()
     return [lemmatizer.lemmatize(token.lower()) for token in tokens]
 
+
 def tokenize_docs(data: List[List[str]]) -> List[List[str]]:
-    stop_words = set(stopwords.words('english'))
+    stop_words = set(stopwords.words("english"))
     tokenized_docs = []
     for doc in data:
         text = doc[3]  # Assuming the text to tokenize is in the 4th column (index 3)
         tokens = word_tokenize(text)
-        cleaned_tokens = [token.lower() for token in tokens if re.match(r'^[a-zA-Z0-9äöüß]+$', token)]
+        cleaned_tokens = [
+            token.lower() for token in tokens if re.match(r"^[a-zA-Z0-9äöüß]+$", token)
+        ]
         final_tokens = [token for token in cleaned_tokens if token not in stop_words]
         lemmatized_tokens = lemmatize_tokens(final_tokens)
         tokenized_docs.append(lemmatized_tokens)
     return tokenized_docs
 
+
 def tokenize_query(text: str) -> List[str]:
-    stop_words = set(stopwords.words('english'))
+    stop_words = set(stopwords.words("english"))
     tokens = word_tokenize(text)
-    cleaned_tokens = [token.lower() for token in tokens if re.match(r'^[a-zA-Z0-9äöüß]+$', token)]
+    cleaned_tokens = [
+        token.lower() for token in tokens if re.match(r"^[a-zA-Z0-9äöüß]+$", token)
+    ]
     final_tokens = [token for token in cleaned_tokens if token not in stop_words]
     lemmatized_tokens = lemmatize_tokens(final_tokens)
     return lemmatized_tokens
 
-def fetch_and_tokenize_documents(api_key: str, db_url: str, db_name: str) -> List[List[str]]:
+
+def fetch_and_tokenize_documents(
+    api_key: str, db_url: str, db_name: str
+) -> List[List[str]]:
     try:
         conn = sqlitecloud.connect(f"sqlitecloud://{db_url}?apikey={api_key}")
         conn.execute(f"USE DATABASE {db_name}")
         cursor = conn.cursor()
-        #TODO Change this method to get_all_documents when done testing
+        # TODO Change this method to get_all_documents when done testing
         documents_from_db = get_first_10_documents(cursor)
         tokenized_docs_from_db = tokenize_docs(documents_from_db)
         return tokenized_docs_from_db
@@ -63,7 +73,8 @@ def fetch_and_tokenize_documents(api_key: str, db_url: str, db_name: str) -> Lis
         if conn:
             conn.close()
 
-'''
+
+"""
 api_key = "xZXTNaxWuKM6ryHCVELzSVnT3KC3AubraCDuwFyxKJ4"
 db_url = "cyd2d2juiz.sqlite.cloud:8860"
 db_name = "documents"
@@ -81,4 +92,4 @@ if tokenized_docs_from_db:
 
     conn.commit()
     conn.close()
-'''
+"""

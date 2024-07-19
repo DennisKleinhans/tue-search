@@ -1,11 +1,15 @@
 import logging
+import os
+import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from src.indexing.inverted_index import handle_query
-import sys
-import os
-sys.path.insert(0, f"{os.getcwd()}")
-from src.retrieval_system.logistic_regression.retrieval_interface import RetrievalSystemInterface
+
+sys.path.append(os.path.abspath("src"))
+from indexing.inverted_index import handle_query
+from retrieval_system.logistic_regression.retrieval_interface import (
+    RetrievalSystemInterface,
+)
+
 
 app = Flask(__name__)
 CORS(app)  # enable CORS for all routes
@@ -38,6 +42,7 @@ def batch_search():
     else:
         return jsonify({"error": "Missing 'queries' parameter"}), 400
 
+
 def process_single_query(query):
     # call the preprocessing
     inverted_index_results = handle_query(query)
@@ -58,35 +63,13 @@ def process_batch_queries(queries):
         logger.info(f"Processing batch query: {query} (queryNumber: {query_number}")
 
         # process each query individually
-        preprocessing_results = preprocessing(query)
+        preprocessing_results = handle_query(query)
         ranked_results = RSI.retrieve_ranking(query, preprocessing_results)
 
         batch_results.append({"queryNumber": query_number, "results": ranked_results})
 
     # create a response with all batch results
     return jsonify({"status": "success", "batch_results": batch_results})
-
-
-def preprocessing(query):
-    # simulate preprocessing results
-    logging.info(f"Preprocessing index on query: {query}")
-    index_results = {
-        "documents": [
-            {"id": 1, "content": "Document 1 content"},
-            {"id": 2, "content": "Document 2 content"},
-        ]
-    }
-    return index_results
-
-
-# def retrieve_ranking(query, index_results):
-#     # simulate ranking results
-#     logging.info(f"Ranking index with: {query} on index results: {index_results}")
-#     ranked_results = [
-#         {"id": 1, "content": "Document 1 content", "score": 0.95},
-#         {"id": 2, "content": "Document 2 content", "score": 0.85},
-#     ]
-#     return ranked_results
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from playwright.sync_api import BrowserContext
 from playwright.sync_api import Playwright
 from playwright.sync_api import sync_playwright
 from requests_oauthlib import OAuth2Session  # type:ignore
-from langdetect import detect
+from langdetect import detect_langs, LangDetectException
 import sys
 
 sys.path.insert(0, f"{os.getcwd()}")
@@ -25,7 +25,12 @@ from src.crawler.configs import CRAWLER_OAUTH_CLIENT_SECRET
 from src.crawler.configs import CRAWLER_OAUTH_TOKEN_URL
 from src.crawler.initial_websites import INITIAL_WEBSITES
 from src.crawler.html_utils import web_html_cleanup, check_if_tuebingen_in_text
-from src.crawler.sql_utils import create_table_if_not_exists, insert_document
+from src.crawler.sql_utils import (
+    create_table_if_not_exists,
+    insert_document,
+    write_to_csv,
+    write_to_json,
+)
 
 import logging
 
@@ -120,7 +125,7 @@ def _read_urls_file(location: str) -> list[str]:
     return urls
 
 
-class Crawler():
+class Crawler:
     def __init__(
         self,
         base_url: str,  # Can't change this without disrupting existing users
@@ -128,11 +133,15 @@ class Crawler():
         mintlify_cleanup: bool = True,  # Mostly ok to apply to other websites as well
         batch_size: int = INDEX_BATCH_SIZE,
         languages: list = None,
+        output_type: str = "csv",
+        output_file: str = "output.csv",
     ) -> None:
         self.mintlify_cleanup = mintlify_cleanup
         self.batch_size = batch_size
         self.recursive = False
         self.languages = languages
+        self.output_type = output_type
+        self.output_file = output_file
 
         if CRAWLER_type == CRAWLER_VALID_SETTINGS.RECURSIVE.value:
             self.recursive = True
@@ -152,7 +161,7 @@ class Crawler():
             raise ValueError(
                 "Invalid Crawler Config, must choose a valid type between: " ""
             )
-            
+
     @staticmethod
     def parse_metadata(metadata: dict[str, Any]) -> list[str]:
         custom_parser_req_msg = (
@@ -169,17 +178,28 @@ class Crawler():
             else:
                 raise RuntimeError(custom_parser_req_msg)
         return metadata_lines
-    
+
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
         if credentials:
             logger.warning("Unexpected credentials provided for crawler")
         return None
 
     def check_language(self, text: str, languages: list) -> bool:
-        detected_language = detect(text)
-        logger.info(f"Detected language: {detected_language}")
-        return detected_language in languages
-        
+        try:
+            detected_langs = detect_langs(text)
+            for lang in detected_langs:
+                if (
+                    lang.lang in languages and lang.prob > 0.3
+                ):  # Threshold can be adjusted
+                    logger.info(
+                        f"Detected language {lang.lang} with probability {lang.prob}"
+                    )
+                    return True
+            return False
+        except LangDetectException as e:
+            logger.warning(f"Language detection failed: {e}")
+            return False
+
     def compare_urls(self, url1, url2):
         """Compares two URLs, ignoring query parameters."""
         # Parse the URLs
@@ -187,9 +207,11 @@ class Crawler():
         parsed_url2 = urlparse(url2)
 
         # Compare core components
-        if (parsed_url1.scheme == parsed_url2.scheme and
-            parsed_url1.netloc == parsed_url2.netloc and
-            parsed_url1.path == parsed_url2.path):
+        if (
+            parsed_url1.scheme == parsed_url2.scheme
+            and parsed_url1.netloc == parsed_url2.netloc
+            and parsed_url1.path == parsed_url2.path
+        ):
             return True
         else:
             return False
@@ -199,7 +221,7 @@ class Crawler():
             if self.compare_urls(current_url, visited_url):
                 return True
         return False
-    
+
     def load_from_state(self):
         """Traverses through all pages found on the website
         and converts them into documents"""
@@ -250,23 +272,25 @@ class Crawler():
                     continue
 
                 parsed_html = web_html_cleanup(soup, self.mintlify_cleanup)
- 
+
                 # Check if the document contains tübingen
                 if not check_if_tuebingen_in_text(parsed_html.cleaned_text):
-                    logger.info(f"Skipped indexing {current_url} due to missing 'Tübingen'")
-                    continue
-                
-                # Check if the document is in the correct language
-                if self.languages and not self.check_language(parsed_html.cleaned_text, self.languages):
-                    logger.info(f"Skipped indexing {current_url} due to language mismatch")
-                    continue
-
-
-                doc_batch.append((
-                        current_url,
-                        parsed_html.cleaned_text,
-                        parsed_html.title
+                    logger.info(
+                        f"Skipped indexing {current_url} due to missing 'Tübingen'"
                     )
+                    continue
+
+                # Check if the document is in the correct language
+                if self.languages and not self.check_language(
+                    parsed_html.cleaned_text, self.languages
+                ):
+                    logger.info(
+                        f"Skipped indexing {current_url} due to language mismatch"
+                    )
+                    continue
+
+                doc_batch.append(
+                    (current_url, parsed_html.cleaned_text, parsed_html.title)
                 )
 
                 page.close()
@@ -279,45 +303,66 @@ class Crawler():
             if len(doc_batch) >= self.batch_size:
                 playwright.stop()
                 restart_playwright = True
-                yield doc_batch
+                if self.output_type == "csv":
+                    write_to_csv(doc_batch, self.output_file)
+                elif self.output_type == "json":
+                    write_to_json(doc_batch, self.output_file)
+                else:
+                    yield doc_batch
                 doc_batch = []
-        
+
         playwright.stop()
-        
+
         if doc_batch:
-            yield doc_batch
+            if self.output_type == "csv":
+                write_to_csv(doc_batch, self.output_file)
+            elif self.output_type == "json":
+                write_to_json(doc_batch, self.output_file)
+            else:
+                yield doc_batch
 
 
 if __name__ == "__main__":
-    
-    # Open the connection to SQLite Cloud
-    conn = sqlitecloud.connect("sqlitecloud://cyd2d2juiz.sqlite.cloud:8860?apikey=xZXTNaxWuKM6ryHCVELzSVnT3KC3AubraCDuwFyxKJ4")
-    db_name = "documents"
-    conn.execute(f"USE DATABASE {db_name}")
-    cursor = conn.cursor()
-    
-    # Create table if not exists
-    create_table_if_not_exists(cursor)
-    
     counter = 0
-    try: 
-            
+    output_type = "json"
+    output_file = "output4"
+
+    if output_type == "db":
+        # Connect to the database
+        conn = sqlitecloud.connect(
+            "sqlitecloud://cyd2d2juiz.sqlite.cloud:8860?apikey=xZXTNaxWuKM6ryHCVELzSVnT3KC3AubraCDuwFyxKJ4"
+        )
+        db_name = "documents"
+        conn.execute(f"USE DATABASE {db_name}")
+        cursor = conn.cursor()
+        # Create the table if it doesn't exist
+        create_table_if_not_exists(cursor)
+
+    try:
         for website in INITIAL_WEBSITES:
-            connector = Crawler(website, CRAWLER_VALID_SETTINGS.RECURSIVE.value, languages=["en"])
+            connector = Crawler(
+                website,
+                CRAWLER_VALID_SETTINGS.RECURSIVE.value,
+                languages=["en"],
+                output_type=output_type,
+                output_file=output_file,
+            )
             document_batches = connector.load_from_state()
-            for batch in document_batches:
-                if batch:
-                    for url, doc, title in batch:
-                        logger.info(f"Title: {title} - URL: {url}")
-                        success = insert_document(cursor, url, title, doc)
-                        if success: counter += 1 
-                        conn.commit()   
+            if output_type == "db":
+                for batch in document_batches:
+                    if batch:
+                        for url, doc, title in batch:
+                            logger.info(f"Title: {title} - URL: {url}")
+                            success = insert_document(cursor, url, title, doc)
+                            if success:
+                                counter += 1
+                            conn.commit()
+            else:
+                for _ in document_batches:
+                    counter += 1
     except Exception as e:
         logger.error(f"Failed to fetch '{website}': {e}")
     finally:
         conn.close()
-    
-    logger.info(f"Crawled {counter} new documents.")
 
-                
-    
+    logger.info(f"Crawled {counter} new documents.")

@@ -25,12 +25,14 @@ def strip_excessive_newlines_and_spaces(document: str) -> str:
     document = re.sub(r"[\n\r]+", "\n", document)
     return document.strip()
 
+
 def check_if_tuebingen_in_text(text: str) -> bool:
-    to_check = ['tuebingen', 'tübingen', 'tubingen']
+    to_check = ["tuebingen", "tübingen", "tubingen"]
     for check in to_check:
         if check in text.lower():
             return True
     return False
+
 
 def strip_newlines(document: str) -> str:
     # HTML might contain newlines which are just whitespaces to a browser
