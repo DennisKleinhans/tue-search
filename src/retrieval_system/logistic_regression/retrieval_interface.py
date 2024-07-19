@@ -3,6 +3,8 @@ from transformers import BertConfig
 import numpy as np
 import sys
 import os
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 
 sys.path.insert(0, f"{os.getcwd()}")
 from src.retrieval_system.logistic_regression.preprocessing import PreprocessingModule, preprocess
@@ -54,9 +56,9 @@ class RetrievalSystemInterface():
             })
             dataset = dataset.map(
                 lambda batch: {
-                    "query": preprocess(batch["query"]),
+                    "query": batch["query"],
                     "document": [
-                        preprocess(batch["document"][j]) 
+                        batch["document"][j] 
                         for j in range(len(batch["document"]))
                     ],
                     "label": batch["label"]
@@ -104,13 +106,20 @@ if __name__ == "__main__":
 
     RSI.train_retrieval_system()
 
-    qry = preprocess("Efficient Estimation of Word Representations in Vector Space")
+    lemmatizer = WordNetLemmatizer()
+    sw_dict = {}
+    for sw in stopwords.words('english'):
+        sw_dict[sw] = None
+
+    _preprocess = lambda s: preprocess(s, lemmatizer, sw_dict)
+
+    qry = _preprocess("Efficient Estimation of Word Representations in Vector Space")
     docs = [
-        preprocess("However, the simple techniques are at their limits in many tasks."),
-        preprocess("We propose two novel model architectures for computing continuous vector representations of words from very large data sets."),
-        preprocess("The quality of these representations is measured in a word similarity task, and the results are compared to the previously best performing techniques based on different types of neural networks."),
-        preprocess("Efficient Estimation of Word Representations in Vector Space"),
-        preprocess("An example is the popular N-gram model used for statistical language modeling - today, it is possible to train N-grams on virtually all available data"),
+        _preprocess("However, the simple techniques are at their limits in many tasks."),
+        _preprocess("We propose two novel model architectures for computing continuous vector representations of words from very large data sets."),
+        _preprocess("The quality of these representations is measured in a word similarity task, and the results are compared to the previously best performing techniques based on different types of neural networks."),
+        _preprocess("Efficient Estimation of Word Representations in Vector Space"),
+        _preprocess("An example is the popular N-gram model used for statistical language modeling - today, it is possible to train N-grams on virtually all available data"),
     ]
     tup = RSI.retrieve_ranking(qry, docs)
     for t in tup:

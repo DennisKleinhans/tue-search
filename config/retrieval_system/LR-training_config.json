@@ -2,7 +2,7 @@
     "dataset_size": 10000,
     "batch_size": 10,
     "batch_padding": true,
-    "tokenizer_max_length": 64,
+    "tokenizer_max_length": 128,
     "train_split_size": 0.8,
     "feature_set": 4,
     "pad_token": "<PAD>",
