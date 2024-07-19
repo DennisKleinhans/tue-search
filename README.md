@@ -1,7 +1,7 @@
 # TUESearch
 
-# Crawler
-## Install playwright 
+## Crawler
+### Install playwright 
 First install dependencies
 ```
 pip install -r requirements.txt
@@ -13,7 +13,7 @@ playwright install chromium
 playwright install-deps chromium
 ```
 
-## VSCode launch.json
+### VSCode launch.json
 ```
 {
    
@@ -33,20 +33,20 @@ playwright install-deps chromium
     ]
 }
 ```
-## Run crawler
+### Run crawler
 ```
 python src/crawler/crawler.py
 ```
 
-### React-Frontend starten
+## React Frontend
 
-Um das React-Frontend zu starten, führen Sie bitte die folgenden Schritte aus:
+To start the React frontend, please carry out the following steps:
 
-1. **In das Projektverzeichnis wechseln**: Navigieren Sie in das Verzeichnis src/frontend.
+1. **Change to the project directory**: Navigate to the src/frontend directory.
     ```bash
     cd src/frontend
     ```
-2. **Abhängigkeiten installieren**: Installieren Sie die notwendigen Abhängigkeiten mit `npm` oder `yarn`.
+2. **Install dependencies**: Install the necessary dependencies with `npm` or `yarn`.
     ```bash
     npm install
     ```
@@ -54,7 +54,7 @@ Um das React-Frontend zu starten, führen Sie bitte die folgenden Schritte aus:
     ```bash
     yarn install
     ```
-3. **Webserver starten**: Starten Sie den Webserver.
+3. **Start web server**: Start the web server.
     ```bash
     npm start
     ```
@@ -62,17 +62,17 @@ Um das React-Frontend zu starten, führen Sie bitte die folgenden Schritte aus:
     ```bash
     yarn start
     ```
-4. **Frontend im Browser öffnen**: Öffnen Sie Ihren Browser und navigieren Sie zu `http://localhost:3000`, um die Anwendung zu sehen.
+4. **Open frontend in browser**: Open your browser and navigate to `http://localhost:3000` to view the application.
 
-### Flask Backend starten 
+## Flask Backend 
 
-Um das Flask Backend zu starten, führen Sie bitte die folgenden Schritte aus:
+To start the Flask backend, please carry out the following steps:
 
-1. **In das Projektverzeichnis wechseln**: Navigieren Sie in das Verzeichnis src/middleware.
+1. **Change to the project directory**: Navigate to the src/middleware directory.
     ```bash
     cd src/middleware
     ```
-2. **Backend Server starten**: Starten Sie den Backend Server.
+2. **Start backend server**: Start the backend server.
     ```bash
     python app.py
     ```
