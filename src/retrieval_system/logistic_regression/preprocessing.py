@@ -36,7 +36,7 @@ def preprocess(string, lemmatizer, sw_dict):
     # return wordpunct_tokenize(string.lower())
     tokens = []
     for token in word_tokenize(string):
-        if re.match(r'^[a-zA-Z0-9äöüß]+$', token) and (not is_stopword(token.lower(), sw_dict)):
+        if re.match(r'^[a-zA-Zäöüß]+$', token) and (not is_stopword(token.lower(), sw_dict)):
             tokens.append(lemmatizer.lemmatize(token.lower()))
     return tokens
 
@@ -180,12 +180,6 @@ class PreprocessingModule(ProcessingModule):
                 tmp = self.QUERIES[i]
             except IndexError:
                 break
-
-            # debug
-            # if i > 35:
-            #     for l in [self.SDE_QUERIES, self.SDE_DOCUMENTS, self.SDE_TARGETS]:
-            #         print(l[:35])
-            #     exit()
 
             interval = time() - start
             if (i + 1) % 10 == 0 and interval > 0:

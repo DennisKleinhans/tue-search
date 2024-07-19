@@ -4,7 +4,7 @@
     "batch_padding": true,
     "tokenizer_max_length": 64,
     "train_split_size": 0.8,
-    "feature_set": 7,
+    "feature_set": 5,
     "pad_token": "<PAD>",
     "eos_token": "<EOS>"
 }

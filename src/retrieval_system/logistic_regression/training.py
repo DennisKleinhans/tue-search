@@ -1,6 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from datasets import load_from_disk
 from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from nltk import ngrams, edit_distance
@@ -13,38 +14,6 @@ import os
 
 sys.path.insert(0, f"{os.getcwd()}")
 from src.retrieval_system.logistic_regression.module_classes import ProcessingModule
-
-
-def reciprocal_rank(true, hat): # not used
-    """"computes the rr for one batch (aka true should have only one 1)"""
-    sorted_ranks = sorted(enumerate(hat), key=lambda t: t[1], reverse=True)
-    ground_truth_rank = -1
-    for i, x in sorted_ranks:
-        try:
-            if i == list(true).index(1):
-                ground_truth_rank = i+1
-                break
-        except ValueError: # '1' not in 'true'
-            break
-    if ground_truth_rank != -1:
-        return 1/ground_truth_rank
-    else:
-        return 0
-    
-
-# def get_glove_embed(tokens, embed_map):
-#     embed_size = 0
-#     for key in embed_map:
-#         embed_size = len(embed_map[key])
-#         break
-#     embeds = []
-#     for t in tokens:
-#         try:
-#             embeds.append(embed_map[t])
-#         except KeyError:
-#             embeds.append([0.0]*embed_size)
-#     # return np.mean(embeds, axis=0) # ?!
-#     return embeds
 
 
 def get_log_prob(probs):
@@ -134,10 +103,7 @@ def normalized_levenshtein_distance(query, document, subst_cost):
 
 def get_features(qry, doc, qry_embeds, doc_embeds, vectorizer, ngram_lms, feature_set):
     query = " ".join(qry)
-    qry_embeds_1d = np.mean(qry_embeds, axis=0)
-
     document = " ".join(doc)
-    doc_embeds_1d = np.mean(doc_embeds, axis=0)
 
     tfidf = vectorizer.fit_transform([query, document])
 
@@ -145,32 +111,40 @@ def get_features(qry, doc, qry_embeds, doc_embeds, vectorizer, ngram_lms, featur
 
     if feature_set == 1: # 
         result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
-        # result.append(cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0])
 
     elif feature_set == 2: # 
         result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
-        # result.append(cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0])
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=1))
-        result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
 
     elif feature_set == 3: # 
         result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
-        # result.append(cosine_similarity(qry_embeds_1d.reshape(1, -1), doc_embeds_1d.reshape(1, -1))[0][0])
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=1))
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
-        result.append(normalized_levenshtein_distance(qry, doc, subst_cost=2))
+
     elif feature_set == 4: # 
         result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=1))
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
-        # result.append(normalized_levenshtein_distance(query, document, subst_cost=1))
-        result.append(edit_distance(qry, doc, substitution_cost=2))
+        result.append(edit_distance(qry, doc, substitution_cost=1))
+
     elif feature_set == 5: # 
+        result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=1))
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
+        result.append(edit_distance(qry, doc, substitution_cost=2))
+
+    elif feature_set == 6: # 
         result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
         result.append(weighted_ngram_matching(query, document, ngram_lms, n=3))
-        # result.append(normalized_levenshtein_distance(query, document, subst_cost=1))
         result.append(edit_distance(qry, doc, substitution_cost=1))
+
+    elif feature_set == 7: # 
+        result.append(cosine_similarity(tfidf[0], tfidf[1])[0][0])
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=2))
+        result.append(weighted_ngram_matching(query, document, ngram_lms, n=3))
+        result.append(edit_distance(qry, doc, substitution_cost=2))
+        
     else:
         raise ValueError(f"feature set {feature_set} is not implemented.")
     
@@ -194,7 +168,14 @@ class TrainingModuleV2(ProcessingModule):
         super().__init__(train_config, model_config)
         self.pipeline_config = pipeline_config
 
-        self.model = LogisticRegression(solver="lbfgs", penalty="l2", class_weight="balanced")
+        self.model = None
+        if pipeline_config.model == "LR":
+            self.model = LogisticRegression(solver="lbfgs", penalty="l2", class_weight="balanced")
+        elif pipeline_config.model == "SVM":
+            self.model = SVC(kernel=model_config.kernel, probability=True)
+        else:
+            raise NotImplementedError(f"The '{pipeline_config.model}' model is not implemented.")
+        
         self.vectorizer = TfidfVectorizer(analyzer='word', stop_words="english")
         self.model_save_path = self.pipeline_config.dataset_save_path+f"/{self.pipeline_config.model}-model-fs{self.train_config.feature_set}.pickle"
         self.ngram_lms_save_path = self.pipeline_config.dataset_save_path+"ngram_lms.pickle"
@@ -241,7 +222,7 @@ class TrainingModuleV2(ProcessingModule):
                     dill.settings['recurse'] = True
                     dill.dump(self.ngram_lms, f, protocol=dill.HIGHEST_PROTOCOL)
             print(" - done")
-        
+
 
         print("mapping features...")
         dataset_savename = f"{self.pipeline_config.dataset_save_path}mapped_features_bs{self.train_config.batch_size}_embed-{self.pipeline_config.embedding_type}"
@@ -267,8 +248,6 @@ class TrainingModuleV2(ProcessingModule):
 
         features = mapped_features["features"]
         targets = mapped_features["targets"]
-
-        # print(features[:5])
 
         
         print("creating split indices...")
@@ -303,6 +282,8 @@ class TrainingModuleV2(ProcessingModule):
         # pretty evaluation metrics
         true = [[1,0] if x == 0 else [0,1] for x in eval_targets]
         hat = self.model.predict_proba(eval_features)
+
+        print(f"\n{self.pipeline_config.model} - Feature Set {self.train_config.feature_set}")
         print(f"Precision: {precision_score(eval_targets, y_hat)}")
         print(f"Recall: {recall_score(eval_targets, y_hat)}")
         print(f"macro-avg. F1: {f1_score(eval_targets, y_hat, average='macro')}")
