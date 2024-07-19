@@ -195,5 +195,6 @@ yarn-error.log*
 data/retrieval_system/mapped_features_*
 data/retrieval_system/preprocessed_dataset_*
 
+notes.py
 code_archive
 restats
