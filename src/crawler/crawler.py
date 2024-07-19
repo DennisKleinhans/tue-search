@@ -15,7 +15,7 @@ from playwright.sync_api import BrowserContext
 from playwright.sync_api import Playwright
 from playwright.sync_api import sync_playwright
 from requests_oauthlib import OAuth2Session  # type:ignore
-from langdetect import detect
+from langdetect import detect_langs, LangDetectException
 import sys
 
 sys.path.insert(0, f"{os.getcwd()}")
@@ -185,9 +185,20 @@ class Crawler:
         return None
 
     def check_language(self, text: str, languages: list) -> bool:
-        detected_language = detect(text)
-        logger.info(f"Detected language: {detected_language}")
-        return detected_language in languages
+        try:
+            detected_langs = detect_langs(text)
+            for lang in detected_langs:
+                if (
+                    lang.lang in languages and lang.prob > 0.3
+                ):  # Threshold can be adjusted
+                    logger.info(
+                        f"Detected language {lang.lang} with probability {lang.prob}"
+                    )
+                    return True
+            return False
+        except LangDetectException as e:
+            logger.warning(f"Language detection failed: {e}")
+            return False
 
     def compare_urls(self, url1, url2):
         """Compares two URLs, ignoring query parameters."""
@@ -314,7 +325,7 @@ class Crawler:
 if __name__ == "__main__":
     counter = 0
     output_type = "json"
-    output_file = "output"
+    output_file = "output4"
 
     if output_type == "db":
         # Connect to the database
