@@ -11,6 +11,8 @@ const App = () => {
   const [translatedQuery, setTranslatedQuery] = useState("");
   const [results, setResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const endpointSearch = "http://localhost:5000/search";
+  const endpointBatchSearch = "http://localhost:5000/batch_search";
 
   const handleSearch = async (searchQuery) => {
     setHasSearched(true);
@@ -19,7 +21,7 @@ const App = () => {
     try {
       console.log("Searching for:", searchQuery);
 
-      const response = await axios.post("http://localhost:5000/search", {
+      const response = await axios.post(endpointSearch, {
         query: searchQuery,
       });
       console.log("Search results:", response.data.results);
@@ -37,7 +39,7 @@ const App = () => {
         queryNumber: queryNumber + 1,
       }));
 
-      const response = await axios.post("http://localhost:5000/batch_search", {
+      const response = await axios.post(endpointBatchSearch, {
         queries: queries,
       });
 
