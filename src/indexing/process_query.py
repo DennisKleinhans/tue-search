@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 results_folder = "results"
 inverted_index_file = os.path.join(results_folder, "inverted_index.json")
 tokenized_docs_file = os.path.join(results_folder, "tokenized_docs.json")
+tf_idf_file = os.path.join(results_folder, "tf_idf_values.json")
 
 
 def fetch_inverted_index(file_path: str) -> Dict[str, List[int]]:
@@ -25,6 +26,19 @@ def fetch_inverted_index(file_path: str) -> Dict[str, List[int]]:
         return {}
 
 
+def fetch_tf_idf_values(file_path: str) -> Dict[int, Dict[str, float]]:
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            raw_data = json.load(f)
+        
+        # Convert document IDs from strings to integers
+        tf_idf_values = {int(doc_id): token_scores for doc_id, token_scores in raw_data.items()}
+        return tf_idf_values
+    except Exception as e:
+        logger.error(f"Error loading TF-IDF values from {file_path}: {e}")
+        return {}
+
+
 def retrieve_documents_from_index(inverted_index: Dict[str, List[int]], query_tokens: List[str]) -> List[int]:
     relevant_doc_ids = set()
     
@@ -32,7 +46,6 @@ def retrieve_documents_from_index(inverted_index: Dict[str, List[int]], query_to
         if term in inverted_index:
             relevant_doc_ids.update(inverted_index[term])
     
-    logger.debug(f"Retrieved document IDs for query tokens '{query_tokens}': {relevant_doc_ids}")
     return list(relevant_doc_ids)
 
 
@@ -49,27 +62,54 @@ def fetch_tokenized_docs(file_path: str) -> Dict[int, List[str]]:
         return {}
 
 
+def calculate_query_tf_idf(query_tokens: List[str], tf_idf_values: Dict[int, Dict[str, float]], relevant_doc_ids: List[int]) -> Dict[int, float]:
+    query_tf_idf = defaultdict(float)
+    
+    # Calculate the TF-IDF score for each document in the relevant_doc_ids
+    for doc_id in relevant_doc_ids:
+        doc_tf_idf = tf_idf_values.get(doc_id, {})
+        
+        # Calculate the score for the query
+        score = sum(doc_tf_idf.get(token, 0) * (query_tokens.count(token) / len(query_tokens)) for token in query_tokens)
+        
+        if score > 0:
+            query_tf_idf[doc_id] = score
+    
+    return query_tf_idf
+
+
 def handle_query(query: str) -> List[List[str]]:
     query_tokens = tokenize_query(query)
-
+    
+    # Fetch the inverted index and TF-IDF values
     inverted_index = fetch_inverted_index(inverted_index_file)
+    tf_idf_values = fetch_tf_idf_values(tf_idf_file)
+    
+    # Step 1: Retrieve relevant document IDs using the inverted index
     relevant_doc_ids = retrieve_documents_from_index(inverted_index, query_tokens)
-    #logger.info(f"Relevant documents for query '{query}': {relevant_doc_ids}")
     
-    # Fill with more documents if fewer than 10 are found
-    if len(relevant_doc_ids) < 10:
-        all_docs = fetch_all_documents()
-        additional_ids = [doc["id"] for doc in all_docs if doc["id"] not in relevant_doc_ids]
-        relevant_doc_ids.extend(additional_ids[:10 - len(relevant_doc_ids)])
+    # If there are no relevant documents found, return an empty result
+    if not relevant_doc_ids:
+        logger.info(f"No relevant documents found for query '{query}'.")
+        return []
+
+    #logger.info(f"Initial relevant documents for query '{query}': {relevant_doc_ids}")
     
-    # Limit the number of document IDs to 200
-    relevant_doc_ids = relevant_doc_ids[:200]
+    # Step 2: Calculate TF-IDF scores for the query
+    query_scores = calculate_query_tf_idf(query_tokens, tf_idf_values, relevant_doc_ids)
+    
+    # Step 3: Sort document IDs by their TF-IDF scores and get the top 30
+    sorted_docs = sorted(query_scores.items(), key=lambda x: x[1], reverse=True)
+    top_doc_ids = [doc_id for doc_id, score in sorted_docs[:30]]
+    
+    # Log the top 30 document IDs and their scores
+    logger.info(f"Top 30 document IDs for query '{query}': {top_doc_ids}")
     
     # Fetch tokenized documents
     tokenized_docs = fetch_tokenized_docs(tokenized_docs_file)
     
-    # Retrieve the tokenized content for the relevant document IDs
-    result = [tokenized_docs.get(doc_id, []) for doc_id in relevant_doc_ids]
+    # Retrieve the tokenized content for the top document IDs
+    result = [tokenized_docs.get(doc_id, []) for doc_id in top_doc_ids]
     
     return result
 
