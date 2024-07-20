@@ -47,8 +47,6 @@ def process_single_query(query):
     # call the preprocessing
     inverted_index_results = handle_query(query)
 
-    #TODO return the indeces in the format of tokenized_docs.json -> List[List[str]]
-
     # call the ranking function with the preprocessing and the query as input to get the ranked results
     ranked_results = RSI.retrieve_ranking(query, inverted_index_results)
 

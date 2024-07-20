@@ -80,7 +80,8 @@ def calculate_query_tf_idf(query_tokens: List[str], tf_idf_values: Dict[int, Dic
 
 def handle_query(query: str) -> List[List[str]]:
     query_tokens = tokenize_query(query)
-    
+    logger.info(f"Tokenized query: {query_tokens}")
+
     # Fetch the inverted index and TF-IDF values
     inverted_index = fetch_inverted_index(inverted_index_file)
     tf_idf_values = fetch_tf_idf_values(tf_idf_file)
