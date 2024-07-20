@@ -40,7 +40,7 @@ python src/crawler/crawler.py
 
 ## React Frontend
 
-To start the React frontend, please carry out the following steps:
+To run the React frontend, you need to install Node.js (https://nodejs.org). Then follow the steps below:
 
 1. **Change to the project directory**: Navigate to the src/frontend directory.
     ```bash
@@ -50,7 +50,7 @@ To start the React frontend, please carry out the following steps:
     ```bash
     npm install
     ```
-    oder
+    or
     ```bash
     yarn install
     ```
@@ -58,7 +58,7 @@ To start the React frontend, please carry out the following steps:
     ```bash
     npm start
     ```
-    oder
+    or
     ```bash
     yarn start
     ```
@@ -66,7 +66,7 @@ To start the React frontend, please carry out the following steps:
 
 ## Flask Backend 
 
-To start the Flask backend, please carry out the following steps:
+To run the Flask backend, please carry out the following steps:
 
 1. **Change to the project directory**: Navigate to the src/middleware directory.
     ```bash
