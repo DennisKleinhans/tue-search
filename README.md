@@ -64,7 +64,7 @@ To run the React frontend, you need to install Node.js (https://nodejs.org). The
     ```
 4. **Open frontend in browser**: Open your browser and navigate to `http://localhost:3000` to view the application.
 
-##Indexing
+## Indexing
 
 Files to run to generate the necessary json files if they are not in the results folder:
 
