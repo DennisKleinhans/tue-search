@@ -2,7 +2,7 @@ import nltk
 import os
 import ssl
 import re
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -26,27 +26,22 @@ else:
 # nltk.download('stopwords')
 # nltk.download('wordnet')
 
-#TODO query processing needs to be the same process as document preprocessing
 lemmatizer = WordNetLemmatizer()
 
 def lemmatize_tokens(tokens: List[str]) -> List[str]:
     return [lemmatizer.lemmatize(token.lower()) for token in tokens]
 
-
-def tokenize_docs(data: List[List[str]]) -> List[List[str]]:
+def tokenize_docs(data: List[Tuple[int, str]]) -> List[Dict[str, List[str]]]:
     stop_words = set(stopwords.words("english"))
     tokenized_docs = []
     logger.info("Started tokenizing docs")
-    for doc in data:
-        text = doc[3]  # Assuming the text to tokenize is in the 4th column (index 3)
+    for doc_id, text in data:
         tokens = word_tokenize(text)
-        #Check for loop 
         cleaned_tokens = [token.lower() for token in tokens if re.match(r'^[a-zA-Zäöüß]+$', token) and token.lower() not in stop_words]
         lemmatized_tokens = lemmatize_tokens(cleaned_tokens)
-        tokenized_docs.append(lemmatized_tokens)
+        tokenized_docs.append({"id": doc_id, "tokens": lemmatized_tokens})
     logger.info("Finished tokenizing docs")
     return tokenized_docs
-
 
 def tokenize_query(text: str) -> List[str]:
     logger.info("Started tokenizing Query")
@@ -56,12 +51,16 @@ def tokenize_query(text: str) -> List[str]:
     lemmatized_tokens = lemmatize_tokens(cleaned_tokens)
     return lemmatized_tokens
 
-def fetch_and_tokenize_documents() -> List[List[str]]:
+def fetch_and_tokenize_documents() -> List[Dict[str, List[str]]]:
     try:
         with open('index_documents.json', 'r', encoding='utf-8') as file:
             documents = json.load(file)
-            
-        data = [[None, None, None, doc["document"]] for doc in documents]
+        
+        # Check if documents have 'id', otherwise use index as ID
+        if 'id' in documents[0]:
+            data = [(doc["id"], doc["document"]) for doc in documents]
+        else:
+            data = [(index, doc["document"]) for index, doc in enumerate(documents)]
         
         tokenized_docs = tokenize_docs(data)
         return tokenized_docs
@@ -69,14 +68,16 @@ def fetch_and_tokenize_documents() -> List[List[str]]:
         logger.error(f"Error fetching and tokenizing documents: {e}")
         return []
 
-#This function is only to check the words. See tokenized_docs.json
-def write_tokenized_docs_to_json(tokenized_docs: List[List[str]], file_path: str) -> None:
+
+# Uncomment the code below to write tokenized documents to a JSON file
+#Function is only used if the code below the function is uncommented
+def write_tokenized_docs_to_json(tokenized_docs: List[Dict[str, List[str]]], file_path: str) -> None:
     """
     Write tokenized documents to a JSON file.
 
     Parameters:
-    tokenized_docs (List[List[str]]): List of tokenized documents
-    output_file (str): Path to the output JSON file
+    tokenized_docs (List[Dict[str, List[str]]]): List of tokenized documents with IDs
+    file_path (str): Path to the output JSON file
     """
     try:
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -86,8 +87,7 @@ def write_tokenized_docs_to_json(tokenized_docs: List[List[str]], file_path: str
     except Exception as e:
         logger.error(f"Error writing tokenized documents to JSON file: {e}")
 
-
-#Check tokenized words in tokenized_docs.json
+# Check tokenized words in tokenized_docs.json
 #results_folder = "results"
 #file = os.path.join(results_folder, "tokenized_docs.json")
 #docs = fetch_and_tokenize_documents()

@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 sys.path.append(os.path.abspath("src"))
-from indexing.inverted_index import handle_query
+from indexing.process_query import handle_query
 from retrieval_system.logistic_regression.retrieval_interface import (
     RetrievalSystemInterface,
 )
@@ -46,6 +46,8 @@ def batch_search():
 def process_single_query(query):
     # call the preprocessing
     inverted_index_results = handle_query(query)
+
+    #TODO return the indeces in the format of tokenized_docs.json -> List[List[str]]
 
     # call the ranking function with the preprocessing and the query as input to get the ranked results
     ranked_results = RSI.retrieve_ranking(query, inverted_index_results)
