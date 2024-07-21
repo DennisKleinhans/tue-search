@@ -50,8 +50,10 @@ const App = () => {
 
         let fileContent = "";
         batchResults.forEach((result) => {
+          let index = 1;
           result.results.forEach((item) => {
-            fileContent += `${result.queryNumber}\t${JSON.stringify(item)}\n`;
+            fileContent += `${result.queryNumber}\t${index}\t${item.url}\t${item.score}\n`;
+            index += 1;
           });
         });
 

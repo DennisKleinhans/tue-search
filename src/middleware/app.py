@@ -44,6 +44,25 @@ def batch_search():
         return jsonify({"error": "Missing 'queries' parameter"}), 400
 
 
+def build_reults(ranked_results_with_ids):
+    # Load the JSON file containing the documents
+    with open("index_documents.json", "r") as file:
+        documents = json.load(file)
+
+    # Create mappings from ID to URL and ID to Title
+    id_to_url = {doc["id"]: doc["url"] for doc in documents}
+    id_to_title = {doc["id"]: doc["title"] for doc in documents}
+
+    # Build the response with URLs and Titles
+    results = []
+    for document, score, doc_id in ranked_results_with_ids:
+        url = id_to_url.get(doc_id, None)
+        title = id_to_title.get(doc_id, None)
+        if url and title:
+            results.append({"id": doc_id, "score": score, "url": url, "title": title})
+    return results
+
+
 def process_single_query(query):
     # call the preprocessing
     inverted_index_results = handle_query(query)
@@ -54,38 +73,34 @@ def process_single_query(query):
 
     # Call the ranking function with the tokenized documents, query, and IDs to get the ranked results
     ranked_results_with_ids = RSI.retrieve_ranking(query, tokenized_docs, doc_ids)
-    # Load the JSON file containing the documents
-    with open("index_documents.json", "r") as file:
-        documents = json.load(file)
 
-    # Create a mapping from ID to URL
-    id_to_url = {doc["id"]: doc["url"] for doc in documents}
-
-    # Build the response with URLs
-    results_with_urls = []
-    for document, score, doc_id in ranked_results_with_ids:
-        url = id_to_url.get(doc_id, None)
-        if url:
-            results_with_urls.append({"id": doc_id, "score": score, "url": url})
+    results = build_reults(ranked_results_with_ids)
 
     # Build the final response
-    response = {"status": "success", "query": query, "results": results_with_urls}
+    response = {"status": "success", "query": query, "results": results}
     return jsonify(response)
 
 
 def process_batch_queries(queries):
     batch_results = []
+    # process each query individually
     for query_obj in queries:
         query = query_obj["query"]
         query_number = query_obj["queryNumber"]
         logger.info(f"Processing batch query: {query} (queryNumber: {query_number}")
 
-        # process each query individually
-        preprocessing_results = handle_query(query)
+        # call the preprocessing
+        inverted_index_results = handle_query(query)
 
-        ranked_results = RSI.retrieve_ranking(query, preprocessing_results)
+        # Extract the tokenized documents and their corresponding IDs
+        doc_ids = list(inverted_index_results.keys())
+        tokenized_docs = list(inverted_index_results.values())
 
-        batch_results.append({"queryNumber": query_number, "results": ranked_results})
+        # Call the ranking function with the tokenized documents, query, and IDs to get the ranked results
+        ranked_results_with_ids = RSI.retrieve_ranking(query, tokenized_docs, doc_ids)
+        results = build_reults(ranked_results_with_ids)
+
+        batch_results.append({"queryNumber": query_number, "results": results})
 
     # create a response with all batch results
     return jsonify({"status": "success", "batch_results": batch_results})
