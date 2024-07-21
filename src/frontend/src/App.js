@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
 import SearchResults from "./components/SearchResults";
-import { getExampleResults } from "./util/utils";
 import StartPage from "./components/StartPage";
 import Header from "./components/Header";
 import "./App.css";

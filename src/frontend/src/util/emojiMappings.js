@@ -299,7 +299,6 @@ const personEmojis = [
   ["\u{270C}", "peace"],
   ["\u{1F44D}", "thumb"],
   ["\u{1F44A}", "fist"],
-  ["🤝", "handshake"],
 ];
 
 export const emojiMap = {

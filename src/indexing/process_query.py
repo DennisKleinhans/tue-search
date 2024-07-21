@@ -2,7 +2,7 @@ import json
 import os
 from collections import defaultdict
 from typing import Dict, List
-from indexing.preprocessing import fetch_and_tokenize_documents, tokenize_query
+from indexing.preprocessing import tokenize_query
 import logging
 
 logging.basicConfig(level=logging.INFO)  # Use DEBUG level for detailed logs
@@ -112,7 +112,7 @@ def handle_query(query: str) -> dict[int, List[str]]:
 
     # Step 3: Sort document IDs by their TF-IDF scores and get the top 30
     sorted_docs = sorted(query_scores.items(), key=lambda x: x[1], reverse=True)
-    top_doc_ids = [doc_id for doc_id, score in sorted_docs[:30]]
+    top_doc_ids = [doc_id for doc_id, score in sorted_docs[:100]]
 
     # Log the top 30 document IDs and their scores
     logger.info(f"Top 30 document IDs for query '{query}': {top_doc_ids}")

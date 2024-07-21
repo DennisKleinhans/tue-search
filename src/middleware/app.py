@@ -45,6 +45,7 @@ def batch_search():
 
 
 def build_reults(ranked_results_with_ids):
+    """Build the final response with URLs and Titles"""
     # Load the JSON file containing the documents
     with open("index_documents.json", "r") as file:
         documents = json.load(file)
@@ -64,6 +65,7 @@ def build_reults(ranked_results_with_ids):
 
 
 def process_single_query(query):
+    """Process a single query and return the results"""
     # call the preprocessing
     inverted_index_results = handle_query(query)
 
@@ -82,6 +84,7 @@ def process_single_query(query):
 
 
 def process_batch_queries(queries):
+    """Process a batch of queries and return the results"""
     batch_results = []
     # process each query individually
     for query_obj in queries:
