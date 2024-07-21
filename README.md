@@ -64,6 +64,23 @@ To run the React frontend, you need to install Node.js (https://nodejs.org). The
     ```
 4. **Open frontend in browser**: Open your browser and navigate to `http://localhost:3000` to view the application.
 
+## Indexing
+
+Files to run to generate the necessary json files if they are not in the results folder:
+
+1. **build_inverted_index.py**: 
+   ```
+   python ./src/indexing/build_inverted_index.py
+   ```
+2. **build_tf_and_idf.py**: 
+   ```
+   python ./src/indexing/build_tf_and_idf.py
+   ```
+3. **build_tf_idf.py**: 
+   ```
+   python ./src/indexing/build_tf_idf.py
+   ```
+
 ## Flask Backend 
 
 To run the Flask backend, please carry out the following steps:
