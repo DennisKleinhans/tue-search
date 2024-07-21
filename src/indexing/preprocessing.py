@@ -1,12 +1,17 @@
 import nltk
+import os
 import ssl
 import re
-import sqlitecloud
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from crawler.sql_utils import get_all_documents, get_first_10_documents
+import logging
+import json
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Ensure necessary NLTK resources are downloaded
 try:
@@ -21,75 +26,69 @@ else:
 # nltk.download('stopwords')
 # nltk.download('wordnet')
 
-# TODO query processing needs to be the same process as document preprocessing
-
+lemmatizer = WordNetLemmatizer()
 
 def lemmatize_tokens(tokens: List[str]) -> List[str]:
-    lemmatizer = WordNetLemmatizer()
     return [lemmatizer.lemmatize(token.lower()) for token in tokens]
 
-
-def tokenize_docs(data: List[List[str]]) -> List[List[str]]:
+def tokenize_docs(data: List[Tuple[int, str]]) -> List[Dict[str, List[str]]]:
     stop_words = set(stopwords.words("english"))
     tokenized_docs = []
-    for doc in data:
-        text = doc[3]  # Assuming the text to tokenize is in the 4th column (index 3)
+    logger.info("Started tokenizing docs")
+    for doc_id, text in data:
         tokens = word_tokenize(text)
-        cleaned_tokens = [
-            token.lower() for token in tokens if re.match(r"^[a-zA-Z0-9äöüß]+$", token)
-        ]
-        final_tokens = [token for token in cleaned_tokens if token not in stop_words]
-        lemmatized_tokens = lemmatize_tokens(final_tokens)
-        tokenized_docs.append(lemmatized_tokens)
+        cleaned_tokens = [token.lower() for token in tokens if re.match(r'^[a-zA-Zäöüß]+$', token) and token.lower() not in stop_words]
+        lemmatized_tokens = lemmatize_tokens(cleaned_tokens)
+        tokenized_docs.append({"id": doc_id, "tokens": lemmatized_tokens})
+    logger.info("Finished tokenizing docs")
     return tokenized_docs
 
-
 def tokenize_query(text: str) -> List[str]:
-    stop_words = set(stopwords.words("english"))
+    logger.info("Started tokenizing Query")
+    stop_words = set(stopwords.words('english'))
     tokens = word_tokenize(text)
-    cleaned_tokens = [
-        token.lower() for token in tokens if re.match(r"^[a-zA-Z0-9äöüß]+$", token)
-    ]
-    final_tokens = [token for token in cleaned_tokens if token not in stop_words]
-    lemmatized_tokens = lemmatize_tokens(final_tokens)
+    cleaned_tokens = [token.lower() for token in tokens if re.match(r'^[a-zA-Zäöüß]+$', token) and token.lower() not in stop_words]
+    lemmatized_tokens = lemmatize_tokens(cleaned_tokens)
     return lemmatized_tokens
 
-
-def fetch_and_tokenize_documents(
-    api_key: str, db_url: str, db_name: str
-) -> List[List[str]]:
+def fetch_and_tokenize_documents() -> List[Dict[str, List[str]]]:
     try:
-        conn = sqlitecloud.connect(f"sqlitecloud://{db_url}?apikey={api_key}")
-        conn.execute(f"USE DATABASE {db_name}")
-        cursor = conn.cursor()
-        # TODO Change this method to get_all_documents when done testing
-        documents_from_db = get_first_10_documents(cursor)
-        tokenized_docs_from_db = tokenize_docs(documents_from_db)
-        return tokenized_docs_from_db
+        with open('index_documents.json', 'r', encoding='utf-8') as file:
+            documents = json.load(file)
+        
+        # Check if documents have 'id', otherwise use index as ID
+        if 'id' in documents[0]:
+            data = [(doc["id"], doc["document"]) for doc in documents]
+        else:
+            data = [(index, doc["document"]) for index, doc in enumerate(documents)]
+        
+        tokenized_docs = tokenize_docs(data)
+        return tokenized_docs
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error fetching and tokenizing documents: {e}")
         return []
-    finally:
-        if conn:
-            conn.close()
 
 
-"""
-api_key = "xZXTNaxWuKM6ryHCVELzSVnT3KC3AubraCDuwFyxKJ4"
-db_url = "cyd2d2juiz.sqlite.cloud:8860"
-db_name = "documents"
+# Uncomment the code below to write tokenized documents to a JSON file
+#Function is only used if the code below the function is uncommented
+def write_tokenized_docs_to_json(tokenized_docs: List[Dict[str, List[str]]], file_path: str) -> None:
+    """
+    Write tokenized documents to a JSON file.
 
-tokenized_docs_from_db = fetch_and_tokenize_documents(api_key, db_url, db_name)
+    Parameters:
+    tokenized_docs (List[Dict[str, List[str]]]): List of tokenized documents with IDs
+    file_path (str): Path to the output JSON file
+    """
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(tokenized_docs, file, ensure_ascii=False, indent=4)
+        logger.info(f"Successfully wrote tokenized documents to {file_path}")
+    except Exception as e:
+        logger.error(f"Error writing tokenized documents to JSON file: {e}")
 
-if tokenized_docs_from_db:
-
-    conn = sqlitecloud.connect(f"sqlitecloud://{db_url}?apikey={api_key}")
-    conn.execute(f"USE DATABASE {db_name}")
-    cursor = conn.cursor()
-
-    #create_processed_documents_table(cursor)
-    #store_processed_documents_and_tf_idf(cursor, documents_from_db, tokenized_docs_from_db, tf_idf_scores, idf_scores)
-
-    conn.commit()
-    conn.close()
-"""
+# Check tokenized words in tokenized_docs.json
+#results_folder = "results"
+#file = os.path.join(results_folder, "tokenized_docs.json")
+#docs = fetch_and_tokenize_documents()
+#write_tokenized_docs_to_json(docs, file)

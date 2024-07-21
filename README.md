@@ -40,7 +40,7 @@ python src/crawler/crawler.py
 
 ## React Frontend
 
-To start the React frontend, please carry out the following steps:
+To run the React frontend, you need to install Node.js (https://nodejs.org). Then follow the steps below:
 
 1. **Change to the project directory**: Navigate to the src/frontend directory.
     ```bash
@@ -50,7 +50,7 @@ To start the React frontend, please carry out the following steps:
     ```bash
     npm install
     ```
-    oder
+    or
     ```bash
     yarn install
     ```
@@ -58,7 +58,7 @@ To start the React frontend, please carry out the following steps:
     ```bash
     npm start
     ```
-    oder
+    or
     ```bash
     yarn start
     ```
@@ -66,7 +66,7 @@ To start the React frontend, please carry out the following steps:
 
 ## Flask Backend 
 
-To start the Flask backend, please carry out the following steps:
+To run the Flask backend, please carry out the following steps:
 
 1. **Change to the project directory**: Navigate to the src/middleware directory.
     ```bash
@@ -76,3 +76,17 @@ To start the Flask backend, please carry out the following steps:
     ```bash
     python app.py
     ```
+
+
+## Retrieval System
+To train the retrieval system on the [MSMARCO](https://huggingface.co/datasets/microsoft/ms_marco) dataset as described in the project report, run 
+```bash
+    python src\retrieval_system\logistic_regression\executable.py
+```
+This will train **and** evaluate the model using a 80/20 train/test split. 
+
+You can manipulate the training process with the configuration files:
+ - `config\retrieval_system\LR-training_config.json`
+ - `config\retrieval_system\pipeline_config.json`
+
+Note that currently only `pipeline_config.model = "LR"` (logistic regression) and `pipeline_config.embedding_type = "none"` (this disables the use of GloVe) are supported.

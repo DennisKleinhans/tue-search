@@ -191,6 +191,10 @@ yarn-error.log*
 .vscode/settings.json
 
 # custom folders/files
-data
+# data
+data/retrieval_system/mapped_features_*
+data/retrieval_system/preprocessed_dataset_*
+
+notes.py
 code_archive
 restats

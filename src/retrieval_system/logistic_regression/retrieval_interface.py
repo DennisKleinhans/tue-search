@@ -66,19 +66,8 @@ class RetrievalSystemInterface():
                 batched=False,
                 remove_columns=dataset.column_names
             )
-            # print(dataset[:3]) 
-            # exit()
-        else: # to match the msmarco architecture, just in case things go south with the custom training set ;)
-            # dataset = dataset.map(
-            #     lambda batch: {
-            #         "query": batch["query"],
-            #         "document": [batch["document"]],
-            #         "label": [batch["label"]]
-            #     },
-            #     batched=False
-            # )
-            pass
-
+        else:
+            raise NotImplementedError("Using a custom dataset is no longer supported.")
 
         print("loading embedding map...")
         embed_map = None
@@ -98,29 +87,3 @@ class RetrievalSystemInterface():
 
     def retrieve_ranking(self, query, preprocessing_results):
         return self.TM.retrieve(query, preprocessing_results)
-
-
-# for debugging
-if __name__ == "__main__":
-    RSI = RetrievalSystemInterface()
-
-    RSI.train_retrieval_system()
-
-    lemmatizer = WordNetLemmatizer()
-    sw_dict = {}
-    for sw in stopwords.words('english'):
-        sw_dict[sw] = None
-
-    _preprocess = lambda s: preprocess(s, lemmatizer, sw_dict)
-
-    qry = _preprocess("Efficient Estimation of Word Representations in Vector Space")
-    docs = [
-        _preprocess("However, the simple techniques are at their limits in many tasks."),
-        _preprocess("We propose two novel model architectures for computing continuous vector representations of words from very large data sets."),
-        _preprocess("The quality of these representations is measured in a word similarity task, and the results are compared to the previously best performing techniques based on different types of neural networks."),
-        _preprocess("Efficient Estimation of Word Representations in Vector Space"),
-        _preprocess("An example is the popular N-gram model used for statistical language modeling - today, it is possible to train N-grams on virtually all available data"),
-    ]
-    tup = RSI.retrieve_ranking(qry, docs)
-    for t in tup:
-        print(t)

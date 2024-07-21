@@ -4,7 +4,7 @@
     "load_dataset_from_disk": true,
     "recompute_ngram_lms": false,
     "load_mapped_features_from_disk": false,
-    "load_model_weights_from_disk": false,
+    "load_model_weights_from_disk": true,
     "embedding_type": "none",
     "glove_file": "glove.6B.50d.txt"
 }
