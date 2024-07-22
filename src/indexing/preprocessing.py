@@ -21,9 +21,9 @@ else:
     ssl._create_default_https_context = _create_unverified_https_context
 
 # Uncomment these lines if running for the first time to download NLTK data
-# nltk.download('punkt')
-# nltk.download('stopwords')
-# nltk.download('wordnet')
+nltk.download("punkt")
+nltk.download("stopwords")
+nltk.download("wordnet")
 
 lemmatizer = WordNetLemmatizer()
 
@@ -99,6 +99,13 @@ def write_tokenized_docs_to_json(
         logger.info(f"Successfully wrote tokenized documents to {file_path}")
     except Exception as e:
         logger.error(f"Error writing tokenized documents to JSON file: {e}")
+
+
+def build_tokenized_docs():
+    results_folder = "results"
+    file = os.path.join(results_folder, "tokenized_docs.json")
+    docs = fetch_and_tokenize_documents()
+    write_tokenized_docs_to_json(docs, file)
 
 
 if __name__ == "__main__":
