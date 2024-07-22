@@ -110,7 +110,7 @@ Note that currently only `pipeline_config.model = "LR"` (logistic regression) an
 
 
 ## License
-This release of tue-search is licensed under the BSD 3-Clause license. Please refer to the `LICENSE` file for the terms of this license.
+This release of TUESearch is licensed under the BSD 3-Clause license. Please refer to the `LICENSE` file for the terms of this license.
 
 
 ## Support
