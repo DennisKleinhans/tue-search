@@ -107,3 +107,11 @@ You can manipulate the training process with the configuration files:
  - `config\retrieval_system\pipeline_config.json`
 
 Note that currently only `pipeline_config.model = "LR"` (logistic regression) and `pipeline_config.embedding_type = "none"` (this disables the use of GloVe) are supported.
+
+
+## License
+This release of tue-search is licensed under the BSD 3-Clause license. Please refer to the `LICENSE` file for the terms of this license.
+
+
+## Support
+This release comes without any support, warranty or guarantee that your PC won't melt while training the retrieval system.
