@@ -13,26 +13,6 @@ playwright install chromium
 playwright install-deps chromium
 ```
 
-### VSCode launch.json
-```
-{
-   
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Website crawler",
-            "type": "python",
-            "request": "launch",
-            "program": "src/crawler/crawler.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/modern-serach-engines/",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/modern-serach-engines/"
-            }
-        }
-    ]
-}
-```
 ### Run crawler
 ```
 python src/crawler/crawler.py
@@ -67,32 +47,17 @@ To run the React frontend, you need to install Node.js (https://nodejs.org). The
 ## Indexing
 
 Files to run to generate the necessary json files if they are not in the results folder:
-
-1. **build_inverted_index.py**: 
-   ```
-   python ./src/indexing/build_inverted_index.py
-   ```
-2. **build_tf_and_idf.py**: 
-   ```
-   python ./src/indexing/build_tf_and_idf.py
-   ```
-3. **build_tf_idf.py**: 
-   ```
-   python ./src/indexing/build_tf_idf.py
-   ```
+To generate the necessary json files if they are not already present in the result folder run:
+```bash
+python build_complete_index.py
+```
 
 ## Flask Backend 
 
-To run the Flask backend, please carry out the following steps:
-
-1. **Change to the project directory**: Navigate to the src/middleware directory.
-    ```bash
-    cd src/middleware
-    ```
-2. **Start backend server**: Start the backend server.
-    ```bash
-    python app.py
-    ```
+To run the Flask backend, simply run:
+ ```bash
+ python src/middleware/app.py
+ ```
 
 
 ## Retrieval System
@@ -110,7 +75,7 @@ Note that currently only `pipeline_config.model = "LR"` (logistic regression) an
 
 
 ## License
-This release of TUESearch is licensed under the BSD 3-Clause license. Please refer to the `LICENSE` file for the terms of this license.
+This release of TUESearch is licensed under the BSD 3-Clause license. Please refer to the LICENSE file for the terms of this license.
 
 
 ## Support
